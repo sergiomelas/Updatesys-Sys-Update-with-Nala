@@ -129,22 +129,56 @@ else
     fi
 fi
 
-# --- 7. Cleanup ---
+#!/bin/bash
+
+# ... [Previous Headers and Progress Bar functions remain the same] ...
+
+# --- 7. Cleanup Section with Visibility Pauses ---
 echo -ne "\n${C_PROMPT}Run system cleanup? [y/N]${C_RESET} "
 read -r resp
 if [ "$resp" = "y" ] || [ "$resp" = "Y" ]; then
+
+    # --- Step 7.1: APT & Cache Cleanup ---
     clear
     draw_progress 5
-    draw_header "Cleaning System" "Removing cache and old configs"
+    draw_header "Cleanup: APT Cache" "Removing package archives"
+    sudo nala clean
     sudo apt autoclean
-    sudo apt --purge autoremove -y
-    purgestr=$(dpkg -l | grep "^rc" | awk '{print $2}')
-    if [ -n "$purgestr" ]; then sudo dpkg --purge "$purgestr"; fi
-    sudo journalctl --vacuum-size=100M
+    echo -e "\n${C_TEXT}APT cache cleared.${C_RESET}"
+    echo -ne "${C_WARN}Press any key to continue to Log cleanup...${C_RESET}"
+    read -n 1 -s -r
+
+    # --- Step 7.2: Journal/Log Cleanup ---
     clear
     draw_progress 5
-    draw_header "Cleanup Result" "Optimization complete"
-    echo -ne "${C_PROMPT}Press any key to continue...${C_RESET} "
+    draw_header "Cleanup: System Logs" "Vacuuming Journalctl to 100M"
+    sudo journalctl --vacuum-size=100M
+    echo -e "\n${C_TEXT}Logs reduced to 100MB.${C_RESET}"
+    echo -ne "${C_WARN}Press any key to continue to Orphan removal...${C_RESET}"
+    read -n 1 -s -r
+
+    # --- Step 7.3: Package Autoremove ---
+    clear
+    draw_progress 5
+    draw_header "Cleanup: Orphan Packages" "Removing unused dependencies"
+    sudo apt --purge autoremove -y
+    echo -e "\n${C_TEXT}Unused packages removed.${C_RESET}"
+    echo -ne "${C_WARN}Press any key to continue to Kernel/Config purge...${C_RESET}"
+    read -n 1 -s -r
+
+    # --- Step 7.4: Kernel Modules & Residual Configs ---
+    clear
+    draw_progress 5
+    draw_header "Cleanup: Residual Files" "Purging old configs and kernels"
+    # Purge residual config files (marked 'rc' in dpkg)
+    purgestr=$(dpkg -l | grep "^rc" | awk '{print $2}')
+    if [ -n "$purgestr" ]; then
+        sudo dpkg --purge "$purgestr"
+    else
+        echo "No residual configurations found."
+    fi
+    echo -e "\n${C_TEXT}Residual files purged.${C_RESET}"
+    echo -ne "${C_PROMPT}All cleanup phases complete. Press any key to finish...${C_RESET}"
     read -n 1 -s -r
 fi
 
