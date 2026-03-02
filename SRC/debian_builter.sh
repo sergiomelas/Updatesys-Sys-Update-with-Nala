@@ -6,7 +6,7 @@
 
 # --- Configuration ---
 PKG_NAME="updatesys"
-PKG_VER="1.0"
+PKG_VER="1.1"
 # Detect the folder where this script is located (SRC)
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Target the subfolder where the actual files are

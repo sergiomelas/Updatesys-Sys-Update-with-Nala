@@ -1,200 +1,231 @@
 #!/bin/bash
 
 ##################################################################
-#              Pretty System Update - Nala Edition               #
+#               Pretty System Update - Precision                 #
 #            Developed by sergio melas  2021-26                  #
 ##################################################################
 
 # --- Colors ---
-C_BORDER='\e[96m'  # Cyan
-C_TEXT='\e[97m'    # White
-C_BOLD='\e[1m'
-C_WARN='\e[93m'    # Yellow/Gold
-C_PROMPT='\e[92m'  # Green
-C_NALA_G='\e[32m'  # Nala Green
-C_NALA_R='\e[31m'  # Nala Red
-C_RESET='\e[0m'
+C_BORDER='\e[96m'; C_TEXT='\e[97m'; C_BOLD='\e[1m'; C_WARN='\e[93m'
+C_PROMPT='\e[92m'; C_NALA_G='\e[32m'; C_NALA_R='\e[31m'; C_RESET='\e[0m'
 
-# --- 1. Nala-Style Progress Bar ---
+# --- 1. Progress Engine ---
+STEP=1
+TOTAL_STEPS=12
+TOTAL_FREED=0
+
 draw_progress() {
-    local current=$1
-    local total=6
     local width=79
-
-    local percent=$(( current * 100 / total ))
-    local filled=$(( current * width / total ))
+    local percent=$(( (STEP * 100) / TOTAL_STEPS ))
+    local filled=$(( (STEP * width) / TOTAL_STEPS ))
     local empty=$(( width - filled ))
-
-    # Nala Style: Green for done, Red for remaining, No background
     echo -ne "${C_NALA_G}"
     for i in $(seq 1 $filled); do echo -n "━"; done
     echo -ne "${C_NALA_R}"
     for i in $(seq 1 $empty); do echo -n "━"; done
-    echo -e "${C_RESET}"
-
-    echo -e " Progress: ${percent}% [Step ${current}/${total}]"
+    echo -e "${C_RESET}\n Progress: ${percent}%"
 }
 
-# --- 2. Header Function ---
 draw_header() {
     local title="$1"
     local tip="$2"
     local width=79
     local title_len=${#title}
     local bar_len=$((width - title_len - 5))
+    if [ "$bar_len" -lt 1 ]; then bar_len=1; fi
 
-    echo -ne "${C_BORDER}┏━${C_TEXT}${C_BOLD} ${title} ${C_RESET}${C_BORDER}"
-    for i in $(seq 1 $bar_len); do echo -n "━"; done
-    echo -e "┓${C_RESET}"
-
-    echo -ne "${C_BORDER}┃"
-    if [ -z "$tip" ]; then
-        for i in $(seq 1 $((width - 2))); do echo -n " "; done
-    else
-        local tip_len=${#tip}
-        local pad=$((width - tip_len - 4))
-        echo -ne "${C_RESET}  ${tip}"
-        for i in $(seq 1 $pad); do echo -n " "; done
-    fi
-    echo -e "${C_BORDER}┃${C_RESET}"
-
-    echo -ne "${C_BORDER}┗"
-    for i in $(seq 1 $((width - 2))); do echo -n "━"; done
-    echo -e "┛${C_RESET}"
+    echo -ne "${C_BORDER}┏━${C_TEXT}${C_BOLD} ${title} ${C_RESET}${C_BORDER}$(printf '━%.0s' $(seq 1 $bar_len))┓\n"
+    echo -ne "┃${C_RESET}  ${tip}$(printf ' %.0s' $(seq 1 $((width - ${#tip} - 4))))${C_BORDER}┃\n"
+    echo -e "┗$(printf '━%.0s' $(seq 1 $((width - 2))))┛${C_RESET}"
 }
 
-# --- 3. Startup ---
-clear
-draw_progress 1
-draw_header "System Update" "Checking OS status"
-fastfetch -l none -s os:kernel:uptime:memory
+draw_separator() {
+    local text="$1"
+    local width=79
+    local text_len=${#text}
+    local side_bar=$(( (width - text_len - 2) / 2 ))
+    if [ "$side_bar" -lt 1 ]; then side_bar=1; fi
+    echo -ne "\n${C_BORDER}$(printf '━%.0s' $(seq 1 $side_bar))${C_TEXT}${C_BOLD} ${text} ${C_RESET}${C_BORDER}$(printf '━%.0s' $(seq 1 $side_bar))${C_RESET}\n"
+}
 
-echo ""
-draw_header "Administrator Login" "Rights required"
+wait_user() {
+    echo -ne "\n${C_WARN}Press any key to continue...${C_RESET} "
+    read -n 1 -s -r
+    ((STEP++))
+}
+
+# --- 2. Initial Check ---
+clear
+draw_progress
+draw_header "Initial Check" "Analyzing repositories silently..."
+echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
-
-# --- 4. Silent Repo Update ---
-clear
-draw_progress 2
-draw_header "Retrieving Updates" "Syncing repositories"
-# Capture output to check for real updates
 sudo nala update 2>&1 | tee /tmp/up_check.txt
 
-# --- 5. SMART SILENT CHECK ---
-echo -e "\n${C_TEXT}Performing silent update check...${C_RESET}"
-
 APT_UP=true
-# FIX: Only set to false if the number before "packages" is 1 or more
 if grep -qE "[1-9][0-9]* packages can be upgraded" /tmp/up_check.txt; then
     APT_UP=false
 fi
 
 FP_UP=true
-if command -v flatpak &> /dev/null; then
-    if flatpak update --dry-run 2>&1 | grep -qE "ID|Installing|Updating"; then FP_UP=false; fi
+if command -v flatpak &>/dev/null; then
+    if flatpak update --dry-run 2>&1 | grep -iqE "ID|Installing|Updating"; then
+        FP_UP=false
+    fi
 fi
 
 SNAP_UP=true
-if command -v snap &> /dev/null; then
-    if ! sudo snap refresh --list 2>&1 | grep -iqE "up to date|no updates"; then SNAP_UP=false; fi
+if command -v snap &>/dev/null; then
+    if ! sudo snap refresh --list 2>&1 | grep -iqE "up to date|no updates"; then
+        SNAP_UP=false
+    fi
 fi
 rm -f /tmp/up_check.txt
+wait_user
 
-# --- 6. Execution Branch ---
-if [ "$APT_UP" = true ] && [ "$FP_UP" = true ] && [ "$SNAP_UP" = true ]; then
-    clear
-    draw_progress 3
-    draw_header "Status" "System is already up to date"
+# --- 3. Update Branch ---
+clear
+draw_progress
+if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
+    draw_header "Status" "System is already fully up to date."
+    STEP=5
+    wait_user
 else
-    # Only show these if there is actually something to do
-    if [ "$APT_UP" = false ]; then
-        echo -ne "\n${C_PROMPT}APT Updates found. Continue? [Y/n]${C_RESET} "
-        read -r resp
-        if [ "$resp" != "n" ] && [ "$resp" != "N" ]; then
-            clear
-            draw_progress 4
-            draw_header "Updating System" "Applying APT patches"
-            sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
-        fi
+    draw_header "Update Pending" "New packages found"
+    if [ "$APT_UP" = "false" ]; then
+        sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
     fi
-
-    if [ "$FP_UP" = false ]; then
-        echo -e "\n${C_TEXT}Updating Flatpaks...${C_RESET}"
+    ((STEP++))
+    if [ "$FP_UP" = "false" ]; then
         sudo flatpak update -y
     fi
-
-    if [ "$SNAP_UP" = false ]; then
-        echo -e "\n${C_TEXT}Updating Snaps...${C_RESET}"
+    ((STEP++))
+    if [ "$SNAP_UP" = "false" ]; then
         sudo snap refresh
     fi
+    ((STEP++))
+    wait_user
 fi
 
-#!/bin/bash
-
-# ... [Previous Headers and Progress Bar functions remain the same] ...
-
-# --- 7. Cleanup Section with Visibility Pauses ---
+# --- 4. Cleanup Branch ---
+clear
+draw_progress
+draw_header "Maintenance" "Check for cleanup?"
 echo -ne "\n${C_PROMPT}Run system cleanup? [y/N]${C_RESET} "
 read -r resp
-if [ "$resp" = "y" ] || [ "$resp" = "Y" ]; then
-
-    # --- Step 7.1: APT & Cache Cleanup ---
-    clear
-    draw_progress 5
-    draw_header "Cleanup: APT Cache" "Removing package archives"
-    sudo nala clean
-    sudo apt autoclean
-    echo -e "\n${C_TEXT}APT cache cleared.${C_RESET}"
-    echo -ne "${C_WARN}Press any key to continue to Log cleanup...${C_RESET}"
-    read -n 1 -s -r
-
-    # --- Step 7.2: Journal/Log Cleanup ---
-    clear
-    draw_progress 5
-    draw_header "Cleanup: System Logs" "Vacuuming Journalctl to 100M"
-    sudo journalctl --vacuum-size=100M
-    echo -e "\n${C_TEXT}Logs reduced to 100MB.${C_RESET}"
-    echo -ne "${C_WARN}Press any key to continue to Orphan removal...${C_RESET}"
-    read -n 1 -s -r
-
-    # --- Step 7.3: Package Autoremove ---
-    clear
-    draw_progress 5
-    draw_header "Cleanup: Orphan Packages" "Removing unused dependencies"
-    sudo apt --purge autoremove -y
-    echo -e "\n${C_TEXT}Unused packages removed.${C_RESET}"
-    echo -ne "${C_WARN}Press any key to continue to Kernel/Config purge...${C_RESET}"
-    read -n 1 -s -r
-
-    # --- Step 7.4: Kernel Modules & Residual Configs ---
-    clear
-    draw_progress 5
-    draw_header "Cleanup: Residual Files" "Purging old configs and kernels"
-    # Purge residual config files (marked 'rc' in dpkg)
-    purgestr=$(dpkg -l | grep "^rc" | awk '{print $2}')
-    if [ -n "$purgestr" ]; then
-        sudo dpkg --purge "$purgestr"
-    else
-        echo "No residual configurations found."
-    fi
-    echo -e "\n${C_TEXT}Residual files purged.${C_RESET}"
-    echo -ne "${C_PROMPT}All cleanup phases complete. Press any key to finish...${C_RESET}"
-    read -n 1 -s -r
-fi
-
-# --- 8. Final Reboot ---
-clear
-draw_progress 6
-if [ -f /var/run/reboot-required ]; then
-    draw_header "Attention" "REBOOT REQUIRED"
-    echo -ne "${C_PROMPT}Do you want to reboot now? [Y/n]${C_RESET} "
-    read -r resp
-    if [ "$resp" != "n" ] && [ "$resp" != "N" ]; then sudo reboot; fi
+if [ "$resp" != "y" ] && [ "$resp" != "Y" ]; then
+    STEP=10
+    wait_user
 else
-    draw_header "Update Finished" "System secure and up to date"
-    echo -ne "${C_PROMPT}Press any key to exit...${C_RESET} "
-    read -n 1 -s -r
+    ((STEP++))
+
+    # 4.1 Kernel Modules
+    clear
+    draw_progress
+    draw_header "Cleanup 1/4" "Removing unused kernel modules"
+    pre_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
+    pre_k=${pre_k:-0}
+    modulestr=$(dpkg -S /lib/modules/* 2>&1 | grep "no path found" | awk '{ print $NF }')
+    if [ -n "$modulestr" ]; then
+        for i in $modulestr; do
+            if [[ "$i" != *'amd64'* ]]; then
+                echo "Removing: $i"
+                sudo rm -rf "$i"
+            else
+                echo "Skipping stock kernel: $i"
+            fi
+        done
+    else
+        echo "No modules to remove."
+    fi
+    post_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
+    post_k=${post_k:-0}
+    diff_k=$(( pre_k - post_k ))
+    if [ "$diff_k" -gt 0 ]; then
+        TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
+        draw_separator "Kernel Space Recovered"
+        echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_k)${C_RESET}"
+    fi
+    wait_user
+
+    # 4.2 Package Cache
+    clear
+    draw_progress
+    draw_header "Cleanup 2/4" "Package Cache"
+    pre_c1=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1)
+    pre_c2=$(du -sb /var/cache/nala 2>/dev/null | cut -f1)
+    pre_c=$(( ${pre_c1:-0} + ${pre_c2:-0} ))
+    sudo apt autoclean; sudo apt --purge autoremove; sudo nala clean
+    post_c1=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1)
+    post_c2=$(du -sb /var/cache/nala 2>/dev/null | cut -f1)
+    post_c=$(( ${post_c1:-0} + ${post_c2:-0} ))
+    diff_c=$(( pre_c - post_c ))
+    if [ "$diff_c" -gt 0 ]; then
+        TOTAL_FREED=$(( TOTAL_FREED + diff_c ))
+        draw_separator "Cache Space Recovered"
+        echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_c)${C_RESET}"
+    fi
+    wait_user
+
+    # 4.3 Old Configurations
+    clear
+    draw_progress
+    draw_header "Cleanup 3/4" "Old Configurations"
+    pre_conf=$(df / | tail -1 | awk '{print $3}')
+    purgestr=$(COLUMNS=200 dpkg -l | grep "^rc" | awk '{print $2}')
+    if [ -n "$purgestr" ]; then
+        sudo dpkg --purge $purgestr
+    else
+        echo "No residual configs found."
+    fi
+    post_conf=$(df / | tail -1 | awk '{print $3}')
+    diff_conf=$(( (pre_conf - post_conf) * 1024 ))
+    if [ "$diff_conf" -gt 0 ]; then
+        TOTAL_FREED=$(( TOTAL_FREED + diff_conf ))
+        draw_separator "Config Space Recovered"
+        echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_conf)${C_RESET}"
+    fi
+    wait_user
+
+    # 4.4 System Logs
+    clear
+    draw_progress
+    draw_header "Cleanup 4/4" "System Logs"
+    pre_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1)
+    sudo journalctl --vacuum-size=100M
+    post_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1)
+    diff_l=$(( ${pre_l:-0} - ${post_l:-0} ))
+    if [ "$diff_l" -gt 0 ]; then
+        TOTAL_FREED=$(( TOTAL_FREED + diff_l ))
+    fi
+    draw_separator "Total Vacuumed Space Steps 1 to 4"
+    echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B ${diff_l:-0})${C_RESET}"
+    wait_user
 fi
 
-kill $(ps -ho ppid -p $(ps -ho ppid -p $$))
+# --- 5. Final Results ---
+clear
+draw_progress
+FREED_HUMAN=$(numfmt --to=iec-i --suffix=B $TOTAL_FREED)
+if [ -f /var/run/reboot-required ]; then
+    draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
+    echo -e "${C_WARN}${C_BOLD}ATTENTION: REBOOT REQUIRED${C_RESET}"
+    echo -ne "\n${C_PROMPT}Reboot now? [y/N]${C_RESET} "
+    read -r resp
+    if [ "$resp" = "y" ] || [ "$resp" = "Y" ]; then
+        sudo reboot
+    fi
+else
+    draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
+    echo -e "${C_PROMPT}System optimized. No reboot needed.${C_RESET}"
+    wait_user
+fi
+
+# --- 6. Exit ---
+clear
+STEP=$TOTAL_STEPS
+draw_progress
+draw_header "Goodbye" "Process complete."
+sleep 1
+kill $(ps -ho ppid -p $(ps -ho ppid -p $$)) 2>/dev/null
 exit 0

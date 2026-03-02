@@ -1,12 +1,13 @@
 [Desktop Entry]
 Name=Update System
-GenericName=System Updater
-Comment=Professional system updater for APT, Flatpak, and Snap packages
+Name[it]=Aggiornamento Sistema
+GenericName=Update Debian with Nala
+GenericName[it]=Aggiorna Debian con Nala
+Comment=High-visibility system updater for APT, Flatpak, and Snap
 Exec=updatesys
-Icon=/usr/share/pixmaps/updatesys.png
+Icon=updatesys
 Terminal=false
 Type=Application
 Categories=System;Settings;Utility;
-Keywords=update;upgrade;nala;apt;system;
 StartupNotify=true
-Version=1.2.2
+Version=1.1
