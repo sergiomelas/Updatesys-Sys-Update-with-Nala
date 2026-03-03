@@ -205,7 +205,7 @@ else
     if [ "$diff_l" -gt 0 ]; then
         TOTAL_FREED=$(( TOTAL_FREED + diff_l ))
     fi
-    draw_separator "Total Vacuumed Space Steps 1 to 4"
+    draw_separator "Total Vacuumed Space from logs"
     echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B ${diff_l:-0})${C_RESET}"
     wait_user
 fi
