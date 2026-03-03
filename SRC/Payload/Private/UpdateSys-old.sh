@@ -61,12 +61,10 @@ draw_header "Initial Check" "Analyzing repositories silently..."
 echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo "Thanks"
-
-# Silent Variable Capture
-UP_MSG=$(sudo nala update 2>&1)
+sudo nala update 2>&1 | tee /tmp/up_check.txt
 
 APT_UP=true
-if echo "$UP_MSG" | grep -qE "[1-9][0-9]* packages can be upgraded"; then
+if grep -qE "[1-9][0-9]* packages can be upgraded" /tmp/up_check.txt; then
     APT_UP=false
 fi
 
@@ -83,22 +81,18 @@ if command -v snap &>/dev/null; then
         SNAP_UP=false
     fi
 fi
-
-
+rm -f /tmp/up_check.txt
+wait_user
 
 # --- 3. Update Branch ---
+clear
+draw_progress
 if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
-    # No clear, no new bar. Just print the status box below.
-    ((STEP++))
     draw_header "Status" "System is already fully up to date."
-    wait_user # Single pause to see the result
+    STEP=5
+    wait_user
 else
-    # If updates ARE found, we clear to give Nala/Flatpak room to work
-    ((STEP++))
-    clear
-    draw_progress
     draw_header "Update Pending" "New packages found"
-
     if [ "$APT_UP" = "false" ]; then
         sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
     fi

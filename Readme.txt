@@ -31,7 +31,7 @@ Change log:
  -V1.0   20-02-2026: Universal Terminal support added. Removed
                      strict Konsole dependency. Enhanced
                      regex for silent update detection.
- -V1.1   20-02-2026: Added progress bar and improved workflow,
+ -V1.1   03-03-2026: Added progress bar and improved workflow,
                     Added Calculation of freed space by cleaner
 
 ##################################################################
