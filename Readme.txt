@@ -36,6 +36,6 @@ Change log:
                     Added Calculation of freed space by cleaner.
 
  -V1.2   05-03-2026: Improved kernel modules clenup from pattern
-                    to really installe kernels.
+                    to really installed kernels.
 
 ##################################################################
