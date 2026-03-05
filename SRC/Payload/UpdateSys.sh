@@ -126,32 +126,61 @@ if [ "$resp" != "y" ] && [ "$resp" != "Y" ]; then
 else
     ((STEP++))
 
-    # 4.1 Kernel Modules
+    # 4.1 Precision Kernel Modules Cleanup
     clear
     draw_progress
-    draw_header "Cleanup 1/4" "Removing unused kernel modules"
+    draw_header "Cleanup 1/4" "Removing orphaned kernel modules"
+
     pre_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     pre_k=${pre_k:-0}
-    modulestr=$(dpkg -S /lib/modules/* 2>&1 | grep "no path found" | awk '{ print $NF }')
-    if [ -n "$modulestr" ]; then
-        for i in $modulestr; do
-            if [[ "$i" != *'amd64'* ]]; then
-                echo "Removing: $i"
-                sudo rm -rf "$i"
-            else
-                echo "Skipping stock kernel: $i"
+
+    # Get the currently running kernel version
+    RUNNING_K=$(uname -r)
+
+    # Get all installed linux-image versions from dpkg (Status 'ii')
+    # This captures the version strings (e.g., 6.1.0-18-amd64)
+    INSTALLED_KS=$(dpkg -l 'linux-image-*' 2>/dev/null | grep '^ii' | awk '{print $2}' | sed 's/linux-image-//g')
+
+    draw_separator "Scanning /lib/modules"
+
+    for mod_dir in /lib/modules/*; do
+        [ -d "$mod_dir" ] || continue
+        k_ver=$(basename "$mod_dir")
+
+        # Check if this module directory matches the running kernel
+        if [ "$k_ver" == "$RUNNING_K" ]; then
+            echo -e " ${C_PROMPT}Keep (Running):${C_RESET} $k_ver"
+            continue
+        fi
+
+        # Check if this module directory matches any installed kernel package
+        MATCH_FOUND=false
+        for inst_k in $INSTALLED_KS; do
+            if [ "$k_ver" == "$inst_k" ]; then
+                MATCH_FOUND=true
+                break
             fi
         done
-    else
-        echo "No modules to remove."
-    fi
+
+        if [ "$MATCH_FOUND" = true ]; then
+            echo -e " ${C_BORDER}Keep (Installed):${C_RESET} $k_ver"
+        else
+            # If we reached here, the modules are orphaned (no package, not running)
+            echo -e " ${C_WARN}Removing Orphaned Modules:${C_RESET} $k_ver"
+            sudo rm -rf "$mod_dir"
+        fi
+    done
+
     post_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     post_k=${post_k:-0}
     diff_k=$(( pre_k - post_k ))
+
     if [ "$diff_k" -gt 0 ]; then
         TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
         draw_separator "Kernel Space Recovered"
-        echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_k)${C_RESET}"
+        echo -e "    ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_k)${C_RESET}"
+    else
+        echo -e "\n No orphaned modules found."
     fi
     wait_user
 
