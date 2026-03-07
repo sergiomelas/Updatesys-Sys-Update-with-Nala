@@ -1,4 +1,5 @@
 ##################################################################
+#                                                                #
 #                        updatesys tool                          #
 #        Developed for Bash by Sergio Melas 2021-2026            #
 #                                                                #
@@ -16,14 +17,16 @@ KEY FEATURES:
 - Terminal Auto-Detection: Works with Konsole, GNOME, XFCE, and more.
 - Intelligent Silent Check: Only prompts if [1-9] updates exist.
 - Multi-Source: Sequential handling of APT, Flatpak, and Snap.
+- Precision Maintenance: Smart cleanup of orphaned kernel modules.
+- Sid Protection: Dedicated manual confirmation for Full-Upgrades.
 - Optimized Geometry: Automatically attempts 900x600 window sizing.
 
 INSTALLATION:
-Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.1.0_all.deb
+Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.2.1_all.deb
 
 USAGE:
 Type 'updatesys' from any command line or run via Alt+F2.
-Or use the Icon
+Desktop entry (Icon) is automatically created in System Tools.
 
 ##################################################################
 Change log:
@@ -32,10 +35,16 @@ Change log:
                      strict Konsole dependency. Enhanced
                      regex for silent update detection.
 
- -V1.1   03-03-2026: Added progress bar and improved workflow,
-                    Added Calculation of freed space by cleaner.
+ -V1.1   03-03-2026: Added progress bar and improved workflow.
+                     Added calculation of freed space by cleaner.
 
- -V1.2   05-03-2026: Improved kernel modules clenup from pattern
-                    to really installed kernels.
+ -V1.2   05-03-2026: Precision Kernel Maintenance. Shifted logic
+                     from simple string patterns (amd64) to
+                     verifying against dpkg 'linux-image' status
+                     and active uname -r.
 
+ -V1.2.1 07-03-2026: Integrated  Full-Upgrade phase.
+                     Separated standard upgrade from dist-upgrade
+                     equivalent with a dedicated user confirmation
+                     page for system safety in SID.
 ##################################################################

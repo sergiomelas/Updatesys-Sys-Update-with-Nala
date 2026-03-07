@@ -1,8 +1,9 @@
 #!/bin/bash
 
 ##################################################################
-#               Pretty System Update - Precision                 #
-#            Developed by sergio melas  2021-26                  #
+#                Pretty System Update - Precision                #
+#             Developed by sergio melas  2021-26                 #
+#             Version: Sid Specialized (Full-Upgrade)            #
 ##################################################################
 
 # --- Colors ---
@@ -11,7 +12,7 @@ C_PROMPT='\e[92m'; C_NALA_G='\e[32m'; C_NALA_R='\e[31m'; C_RESET='\e[0m'
 
 # --- 1. Progress Engine ---
 STEP=1
-TOTAL_STEPS=12
+TOTAL_STEPS=14  # Updated for dedicated Full-Upgrade confirmation page
 TOTAL_FREED=0
 
 draw_progress() {
@@ -62,7 +63,6 @@ echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo "Thanks"
 
-# Silent Variable Capture
 UP_MSG=$(sudo nala update 2>&1)
 
 APT_UP=true
@@ -84,33 +84,57 @@ if command -v snap &>/dev/null; then
     fi
 fi
 
-
-
 # --- 3. Update Branch ---
 if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
-    # No clear, no new bar. Just print the status box below.
-    ((STEP++))
+    ((STEP+=6)) # Advance bar to maintenance section
     draw_header "Status" "System is already fully up to date."
-    wait_user # Single pause to see the result
+    wait_user
 else
-    # If updates ARE found, we clear to give Nala/Flatpak room to work
+    # 3.1 Normal Upgrade
     ((STEP++))
     clear
     draw_progress
-    draw_header "Update Pending" "New packages found"
-
+    draw_header "Update Pending" "Performing standard package upgrade"
     if [ "$APT_UP" = "false" ]; then
         sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
     fi
     ((STEP++))
+
+    # 3.2 Sid Full-Upgrade (Dedicated Confirmation Page)
+    clear
+    draw_progress
+    draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
+    if [ "$APT_UP" = "false" ]; then
+        echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
+        read -r full_resp
+        if [ "$full_resp" = "y" ] || [ "$full_resp" = "Y" ]; then
+            sudo nala full-upgrade --autoremove --purge --no-update
+        else
+            echo -e "${C_WARN}Skipping full-upgrade phase.${C_RESET}"
+        fi
+    else
+        echo "No APT updates available."
+    fi
+    ((STEP++))
+
+    # 3.3 Flatpak Update
+    clear
+    draw_progress
+    draw_header "Flatpak" "Updating Flatpak runtimes and apps"
     if [ "$FP_UP" = "false" ]; then
         sudo flatpak update -y
     fi
     ((STEP++))
+
+    # 3.4 Snap Update
+    clear
+    draw_progress
+    draw_header "Snap" "Refreshing Snap packages"
     if [ "$SNAP_UP" = "false" ]; then
         sudo snap refresh
     fi
     ((STEP++))
+
     wait_user
 fi
 
@@ -121,7 +145,7 @@ draw_header "Maintenance" "Check for cleanup?"
 echo -ne "\n${C_PROMPT}Run system cleanup? [y/N]${C_RESET} "
 read -r resp
 if [ "$resp" != "y" ] && [ "$resp" != "Y" ]; then
-    STEP=10
+    STEP=12
     wait_user
 else
     ((STEP++))
@@ -130,30 +154,19 @@ else
     clear
     draw_progress
     draw_header "Cleanup 1/4" "Removing orphaned kernel modules"
-
     pre_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     pre_k=${pre_k:-0}
-
-    # Get the currently running kernel version
     RUNNING_K=$(uname -r)
-
-    # Get all installed linux-image versions from dpkg (Status 'ii')
-    # This captures the version strings (e.g., 6.1.0-18-amd64)
     INSTALLED_KS=$(dpkg -l 'linux-image-*' 2>/dev/null | grep '^ii' | awk '{print $2}' | sed 's/linux-image-//g')
 
     draw_separator "Scanning /lib/modules"
-
     for mod_dir in /lib/modules/*; do
         [ -d "$mod_dir" ] || continue
         k_ver=$(basename "$mod_dir")
-
-        # Check if this module directory matches the running kernel
         if [ "$k_ver" == "$RUNNING_K" ]; then
             echo -e " ${C_PROMPT}Keep (Running):${C_RESET} $k_ver"
             continue
         fi
-
-        # Check if this module directory matches any installed kernel package
         MATCH_FOUND=false
         for inst_k in $INSTALLED_KS; do
             if [ "$k_ver" == "$inst_k" ]; then
@@ -161,11 +174,9 @@ else
                 break
             fi
         done
-
         if [ "$MATCH_FOUND" = true ]; then
             echo -e " ${C_BORDER}Keep (Installed):${C_RESET} $k_ver"
         else
-            # If we reached here, the modules are orphaned (no package, not running)
             echo -e " ${C_WARN}Removing Orphaned Modules:${C_RESET} $k_ver"
             sudo rm -rf "$mod_dir"
         fi
@@ -174,13 +185,10 @@ else
     post_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     post_k=${post_k:-0}
     diff_k=$(( pre_k - post_k ))
-
     if [ "$diff_k" -gt 0 ]; then
         TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
         draw_separator "Kernel Space Recovered"
         echo -e "    ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_k)${C_RESET}"
-    else
-        echo -e "\n No orphaned modules found."
     fi
     wait_user
 
