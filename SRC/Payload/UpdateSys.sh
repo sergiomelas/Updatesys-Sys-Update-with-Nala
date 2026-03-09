@@ -3,7 +3,7 @@
 ##################################################################
 #                Pretty System Update - Precision                #
 #             Developed by sergio melas  2021-26                 #
-#             Version: Sid Specialized (Full-Upgrade)            #
+#             Version: Sid Specialized (Consolidated + Final)    #
 ##################################################################
 
 # --- Colors ---
@@ -12,7 +12,7 @@ C_PROMPT='\e[92m'; C_NALA_G='\e[32m'; C_NALA_R='\e[31m'; C_RESET='\e[0m'
 
 # --- 1. Progress Engine ---
 STEP=1
-TOTAL_STEPS=14  # Updated for dedicated Full-Upgrade confirmation page
+TOTAL_STEPS=9  # Optimized for consolidated workflow
 TOTAL_FREED=0
 
 draw_progress() {
@@ -86,24 +86,25 @@ fi
 
 # --- 3. Update Branch ---
 if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
-    ((STEP+=6)) # Advance bar to maintenance section
+    ((STEP+=2))
     draw_header "Status" "System is already fully up to date."
     wait_user
 else
-    # 3.1 Normal Upgrade
     ((STEP++))
     clear
     draw_progress
-    draw_header "Update Pending" "Performing standard package upgrade"
+    draw_header "System Updates" "Consolidated Package Management"
+
+    # 3.1 Normal Upgrade
+    draw_separator "Standard APT"
     if [ "$APT_UP" = "false" ]; then
         sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
+    else
+        echo -e "${C_BOLD}No normal package updates available.${C_RESET}"
     fi
-    ((STEP++))
 
-    # 3.2 Sid Full-Upgrade (Dedicated Confirmation Page)
-    clear
-    draw_progress
-    draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
+    # 3.2 Sid Full-Upgrade
+    draw_separator "Sid Full-Upgrade"
     if [ "$APT_UP" = "false" ]; then
         echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
         read -r full_resp
@@ -113,27 +114,24 @@ else
             echo -e "${C_WARN}Skipping full-upgrade phase.${C_RESET}"
         fi
     else
-        echo "No APT updates available."
+        echo -e "${C_BOLD}No Full-Upgrade required.${C_RESET}"
     fi
-    ((STEP++))
 
-    # 3.3 Flatpak Update
-    clear
-    draw_progress
-    draw_header "Flatpak" "Updating Flatpak runtimes and apps"
+    # 3.3 Flatpak
+    draw_separator "Flatpak"
     if [ "$FP_UP" = "false" ]; then
         sudo flatpak update -y
+    else
+        echo -e "${C_BOLD}No Flatpak updates found.${C_RESET}"
     fi
-    ((STEP++))
 
-    # 3.4 Snap Update
-    clear
-    draw_progress
-    draw_header "Snap" "Refreshing Snap packages"
+    # 3.4 Snap
+    draw_separator "Snap"
     if [ "$SNAP_UP" = "false" ]; then
         sudo snap refresh
+    else
+        echo -e "${C_BOLD}No Snaptd updates found.${C_RESET}"
     fi
-    ((STEP++))
 
     wait_user
 fi
@@ -145,7 +143,7 @@ draw_header "Maintenance" "Check for cleanup?"
 echo -ne "\n${C_PROMPT}Run system cleanup? [y/N]${C_RESET} "
 read -r resp
 if [ "$resp" != "y" ] && [ "$resp" != "Y" ]; then
-    STEP=12
+    STEP=7
     wait_user
 else
     ((STEP++))
@@ -181,15 +179,6 @@ else
             sudo rm -rf "$mod_dir"
         fi
     done
-
-    post_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
-    post_k=${post_k:-0}
-    diff_k=$(( pre_k - post_k ))
-    if [ "$diff_k" -gt 0 ]; then
-        TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
-        draw_separator "Kernel Space Recovered"
-        echo -e "    ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_k)${C_RESET}"
-    fi
     wait_user
 
     # 4.2 Package Cache
@@ -251,25 +240,29 @@ fi
 clear
 draw_progress
 FREED_HUMAN=$(numfmt --to=iec-i --suffix=B $TOTAL_FREED)
+draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
+
+# Reboot confirmation question comes BEFORE the last page
 if [ -f /var/run/reboot-required ]; then
-    draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
     echo -e "${C_WARN}${C_BOLD}ATTENTION: REBOOT REQUIRED${C_RESET}"
     echo -ne "\n${C_PROMPT}Reboot now? [y/N]${C_RESET} "
     read -r resp
     if [ "$resp" = "y" ] || [ "$resp" = "Y" ]; then
         sudo reboot
     fi
-else
-    draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
-    echo -e "${C_PROMPT}System optimized. No reboot needed.${C_RESET}"
-    wait_user
 fi
+wait_user
 
 # --- 6. Exit ---
 clear
 STEP=$TOTAL_STEPS
 draw_progress
-draw_header "Goodbye" "Process complete."
-sleep 1
+# "No reboot needed" is now correctly placed in the last page frame
+if [ -f /var/run/reboot-required ]; then
+    draw_header "Goodbye" "Process complete. Reboot pending."
+else
+    draw_header "Goodbye" "System optimized. No reboot needed."
+fi
+sleep 2
 kill $(ps -ho ppid -p $(ps -ho ppid -p $$)) 2>/dev/null
 exit 0

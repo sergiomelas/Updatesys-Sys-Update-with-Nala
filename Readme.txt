@@ -16,10 +16,11 @@ KEY FEATURES:
 - Nala-style Progress bar (Green/Red/Cyan/Yellow morphing).
 - Terminal Auto-Detection: Works with Konsole, GNOME, XFCE, and more.
 - Intelligent Silent Check: Only prompts if [1-9] updates exist.
-- Multi-Source: Sequential handling of APT, Flatpak, and Snap.
+- Consolidated Workflow: Single-page handling of APT, Flatpak, and Snap.
+- Explicit Reporting: Clearly states "No updates" for specific sources.
 - Precision Maintenance: Smart cleanup of orphaned kernel modules.
+- DKMS Verification: Checks driver integrity (e.g., Goodix) post-update.
 - Sid Protection: Dedicated manual confirmation for Full-Upgrades.
-- Optimized Geometry: Automatically attempts 900x600 window sizing.
 
 INSTALLATION:
 Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.2.1_all.deb
@@ -43,8 +44,9 @@ Change log:
                      verifying against dpkg 'linux-image' status
                      and active uname -r.
 
- -V1.2.1 07-03-2026: Integrated  Full-Upgrade phase.
-                     Separated standard upgrade from dist-upgrade
-                     equivalent with a dedicated user confirmation
-                     page for system safety in SID.
+ -V1.2.1 09-03-2026: Consolidated all update sources into a single
+                     visual page. Added explicit status reporting
+                     (No normal package/Flatpak/Snaptd updates).
+                     Integrated DKMS integrity check to verify
+                     drivers after SID kernel transitions.
 ##################################################################
