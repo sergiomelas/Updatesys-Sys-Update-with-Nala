@@ -15,10 +15,12 @@ automatically detecting the available terminal emulator.
 KEY FEATURES:
 - Nala-style Progress bar (Green/Red/Cyan/Yellow morphing).
 - Terminal Auto-Detection: Works with Konsole, GNOME, XFCE, and more.
-- Intelligent Silent Check: Only prompts if [1-9] updates exist.
-- Consolidated Workflow: Single-page handling of APT, Flatpak, and Snap.
-- Explicit Reporting: Clearly states "No updates" for specific sources.
-- Precision Maintenance: Smart cleanup of orphaned kernel modules.
+- Sid-Optimized "Strict Silence": Uses dry-run simulations to ignore
+  held packages, only prompting when actual upgrades are possible.
+- Surgical Consolidation: Single-page handling of APT, Flatpak, and
+  Snap that only displays sources with pending updates.
+- Precision Maintenance: Smart cleanup of orphaned kernel modules
+  verified against dpkg status and running kernel version.
 - DKMS Verification: Checks driver integrity (e.g., Goodix) post-update.
 - Sid Protection: Dedicated manual confirmation for Full-Upgrades.
 
@@ -32,21 +34,27 @@ Desktop entry (Icon) is automatically created in System Tools.
 ##################################################################
 Change log:
 
- -V1.0   20-02-2026: Universal Terminal support added. Removed
-                     strict Konsole dependency. Enhanced
-                     regex for silent update detection.
+ -V1.0   20-02-2026:  - Universal Terminal support added.
+                      - Removed strict Konsole dependency.
+                      - Enhanced regex for silent update detection.
 
- -V1.1   03-03-2026: Added progress bar and improved workflow.
-                     Added calculation of freed space by cleaner.
+ -V1.1   03-03-2026:  - Added progress bar and improved workflow.
+                      - Added calculation of freed space by cleaner.
 
- -V1.2   05-03-2026: Precision Kernel Maintenance. Shifted logic
-                     from simple string patterns (amd64) to
-                     verifying against dpkg 'linux-image' status
-                     and active uname -r.
+ -V1.2   05-03-2026:  - Precision Kernel Maintenance.
+                      - Shifted logic from simple string patterns (amd64)
+                        to verifying against dpkg 'linux-image' status
+                        and active uname -r.
+ -V1.2.1 06-03-2026:  - Corrected Session Savings calculation
+                       logic for cache cleaning.
+                      - Updated Icon
 
- -V1.2.1 09-03-2026: Consolidated all update sources into a single
-                     visual page. Added explicit status reporting
-                     (No normal package/Flatpak/Snaptd updates).
-                     Integrated DKMS integrity check to verify
-                     drivers after SID kernel transitions.
+ -V1.2.2 09-03-2026: Major Logic Overhaul for Sid.
+                     - Implemented strict Simulation (Dry-Run)
+                       checks to eliminate false "Update" prompts.
+                     - Surgical Page Consolidation: Only managers
+                       with actual work are displayed.
+                     - Added DKMS Integrity Check for post-upgrade
+                       driver verification.
+
 ##################################################################

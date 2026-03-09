@@ -1,29 +1,24 @@
 #!/bin/bash
-#Clean Debian Builder
+# Clean Debian Builder
 # Developed by Sergio Melas - 2026
-
-
 
 # --- Configuration ---
 PKG_NAME="updatesys"
-PKG_VER="1.2.1"
-# Detect the folder where this script is located (SRC)
+PKG_VER="1.2.2"
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Target the subfolder where the actual files are
 PAYLOAD_DIR="${BASE_DIR}/Payload"
 BUILD_DIR="${BASE_DIR}/build_workspace"
 
 echo " "
 echo " ##################################################################"
 echo " #                                                                #"
-echo " #            System Configuration Debia                          #"
+echo " #                System Configuration Debian                     #"
 echo " #          Master Builder V1.0 - Debian Integration              #"
 echo " #                                                                #"
 echo " ##################################################################"
 echo " "
 
-
-# --- Exact Filenames from your Payload folder ---
+# --- Files ---
 MAIN_LOGIC="UpdateSys.sh"
 LAUNCHER="UpdateSys_Laucher.sh"
 DESKTOP_FILE="Sys Update.desktop"
@@ -32,7 +27,6 @@ ICON_FILE="updatesys.png"
 echo "🚀 Starting UpdateSys V${PKG_VER} Payload-Aware Build..."
 
 # --- Pre-Build Verification ---
-# This checks specifically inside the Payload subfolder
 if [ ! -d "$PAYLOAD_DIR" ]; then
     echo "❌ ERROR: Subfolder 'Payload' not found in: ${BASE_DIR}"
     exit 1
@@ -63,6 +57,7 @@ chmod +x "$BUILD_DIR/usr/share/updatesys/UpdateSys.sh"
 chmod +x "$BUILD_DIR/usr/bin/updatesys"
 
 # 3. Create the Debian Control File
+# Fixed: Hard dependencies ensure the script functions never "skip"
 cat <<EOF > "$BUILD_DIR/DEBIAN/control"
 Package: $PKG_NAME
 Version: $PKG_VER
@@ -70,13 +65,14 @@ Section: utils
 Priority: optional
 Architecture: all
 Maintainer: Sergio Melas <sergiomelas@gmail.com>
-Depends: nala, fastfetch, flatpak, bash
+Depends: nala, fastfetch, flatpak, snapd, dkms, bash, coreutils
 Recommends: konsole | gnome-terminal | xfce4-terminal
 Description: Pretty System Update
- Professional system updater for Debian. Standardized Payload build.
+ Professional system updater for Debian Sid.
+ Optimized for surgical updates and DKMS driver integrity.
 EOF
 
-# --- Dynamic Padding Logic for the Installer Box ---
+# --- Box Padding Logic ---
 WIDTH=48
 STR1="# UpdateSys V${PKG_VER} installed successfully."
 PAD1=$(( WIDTH - ${#STR1} - 1 ))
@@ -93,7 +89,6 @@ cat <<EOF > "$BUILD_DIR/DEBIAN/postinst"
 #!/bin/bash
 update-desktop-database /usr/share/applications >/dev/null 2>&1
 
-# Refresh KDE Plasma cache
 if command -v kbuildsycoca6 >/dev/null 2>&1; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1
 elif command -v kbuildsycoca5 >/dev/null 2>&1; then
@@ -119,10 +114,9 @@ fi
 EOF
 chmod 755 "$BUILD_DIR/DEBIAN/postrm"
 
-# 6. Build the final .deb package
+# 6. Build
 echo "🏗️  Compiling .deb package..."
 dpkg-deb --build "$BUILD_DIR" "${BASE_DIR}/${PKG_NAME}_${PKG_VER}_all.deb"
 
-# Cleanup
 rm -rf "$BUILD_DIR"
 echo "✅ Build successful! Find your file in: ${BASE_DIR}"

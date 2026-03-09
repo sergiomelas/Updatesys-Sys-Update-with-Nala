@@ -3,8 +3,11 @@
 ##################################################################
 #                Pretty System Update - Precision                #
 #             Developed by sergio melas  2021-26                 #
-#             Version: Sid Specialized (Consolidated + Final)    #
+#             Version: Sid Specialized (Full-Upgrade)            #
 ##################################################################
+
+# --- 0. Environment Fix (Path for DKMS/Sid) ---
+export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 
 # --- Colors ---
 C_BORDER='\e[96m'; C_TEXT='\e[97m'; C_BOLD='\e[1m'; C_WARN='\e[93m'
@@ -12,7 +15,7 @@ C_PROMPT='\e[92m'; C_NALA_G='\e[32m'; C_NALA_R='\e[31m'; C_RESET='\e[0m'
 
 # --- 1. Progress Engine ---
 STEP=1
-TOTAL_STEPS=9  # Optimized for consolidated workflow
+TOTAL_STEPS=15  # Incremented for DKMS Integrity Step
 TOTAL_FREED=0
 
 draw_progress() {
@@ -63,10 +66,12 @@ echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo "Thanks"
 
-UP_MSG=$(sudo nala update 2>&1)
+# SID FIX: Using Simulation to detect actionable updates
+sudo nala update >/dev/null 2>&1
+SIM_APT=$(sudo nala full-upgrade --no-update --simulate 2>&1)
 
 APT_UP=true
-if echo "$UP_MSG" | grep -qE "[1-9][0-9]* packages can be upgraded"; then
+if echo "$SIM_APT" | grep -qE "[1-9][0-9]* (upgraded|newly installed|removed)"; then
     APT_UP=false
 fi
 
@@ -86,25 +91,26 @@ fi
 
 # --- 3. Update Branch ---
 if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
-    ((STEP+=2))
+    ((STEP+=6)) # Advance bar to maintenance section
     draw_header "Status" "System is already fully up to date."
     wait_user
 else
+    # 3.1 Normal Upgrade
     ((STEP++))
     clear
     draw_progress
-    draw_header "System Updates" "Consolidated Package Management"
-
-    # 3.1 Normal Upgrade
-    draw_separator "Standard APT"
+    draw_header "Update Pending" "Performing standard package upgrade"
     if [ "$APT_UP" = "false" ]; then
         sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
     else
-        echo -e "${C_BOLD}No normal package updates available.${C_RESET}"
+        echo "All APT packages are up to date."
     fi
+    ((STEP++))
 
     # 3.2 Sid Full-Upgrade
-    draw_separator "Sid Full-Upgrade"
+    clear
+    draw_progress
+    draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
     if [ "$APT_UP" = "false" ]; then
         echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
         read -r full_resp
@@ -114,24 +120,31 @@ else
             echo -e "${C_WARN}Skipping full-upgrade phase.${C_RESET}"
         fi
     else
-        echo -e "${C_BOLD}No Full-Upgrade required.${C_RESET}"
+        echo "No Full-Upgrade required."
     fi
+    ((STEP++))
 
-    # 3.3 Flatpak
-    draw_separator "Flatpak"
+    # 3.3 Flatpak Update
+    clear
+    draw_progress
+    draw_header "Flatpak" "Updating Flatpak runtimes and apps"
     if [ "$FP_UP" = "false" ]; then
         sudo flatpak update -y
     else
-        echo -e "${C_BOLD}No Flatpak updates found.${C_RESET}"
+        echo "Flatpaks are up to date."
     fi
+    ((STEP++))
 
-    # 3.4 Snap
-    draw_separator "Snap"
+    # 3.4 Snap Update
+    clear
+    draw_progress
+    draw_header "Snap" "Refreshing Snap packages"
     if [ "$SNAP_UP" = "false" ]; then
         sudo snap refresh
     else
-        echo -e "${C_BOLD}No Snaptd updates found.${C_RESET}"
+        echo "Snaps are up to date."
     fi
+    ((STEP++))
 
     wait_user
 fi
@@ -143,7 +156,7 @@ draw_header "Maintenance" "Check for cleanup?"
 echo -ne "\n${C_PROMPT}Run system cleanup? [y/N]${C_RESET} "
 read -r resp
 if [ "$resp" != "y" ] && [ "$resp" != "Y" ]; then
-    STEP=7
+    STEP=13
     wait_user
 else
     ((STEP++))
@@ -151,7 +164,7 @@ else
     # 4.1 Precision Kernel Modules Cleanup
     clear
     draw_progress
-    draw_header "Cleanup 1/4" "Removing orphaned kernel modules"
+    draw_header "Cleanup 1/5" "Removing orphaned kernel modules"
     pre_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     pre_k=${pre_k:-0}
     RUNNING_K=$(uname -r)
@@ -179,12 +192,21 @@ else
             sudo rm -rf "$mod_dir"
         fi
     done
+
+    post_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
+    post_k=${post_k:-0}
+    diff_k=$(( pre_k - post_k ))
+    if [ "$diff_k" -gt 0 ]; then
+        TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
+        draw_separator "Kernel Space Recovered"
+        echo -e "    ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_k)${C_RESET}"
+    fi
     wait_user
 
     # 4.2 Package Cache
     clear
     draw_progress
-    draw_header "Cleanup 2/4" "Package Cache"
+    draw_header "Cleanup 2/5" "Package Cache"
     pre_c1=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1)
     pre_c2=$(du -sb /var/cache/nala 2>/dev/null | cut -f1)
     pre_c=$(( ${pre_c1:-0} + ${pre_c2:-0} ))
@@ -203,7 +225,7 @@ else
     # 4.3 Old Configurations
     clear
     draw_progress
-    draw_header "Cleanup 3/4" "Old Configurations"
+    draw_header "Cleanup 3/5" "Old Configurations"
     pre_conf=$(df / | tail -1 | awk '{print $3}')
     purgestr=$(COLUMNS=200 dpkg -l | grep "^rc" | awk '{print $2}')
     if [ -n "$purgestr" ]; then
@@ -223,7 +245,7 @@ else
     # 4.4 System Logs
     clear
     draw_progress
-    draw_header "Cleanup 4/4" "System Logs"
+    draw_header "Cleanup 4/5" "System Logs"
     pre_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1)
     sudo journalctl --vacuum-size=100M
     post_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1)
@@ -234,35 +256,42 @@ else
     draw_separator "Total Vacuumed Space from logs"
     echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B ${diff_l:-0})${C_RESET}"
     wait_user
+
+    # 4.5 DKMS Driver Verification (New Dedicated Reporting Step)
+    clear
+    draw_progress
+    draw_header "Cleanup 5/5" "Verifying DKMS Driver Integrity"
+    if type -p dkms &>/dev/null; then
+        sudo dkms status
+    else
+        echo -e "${C_WARN}DKMS binary not found in PATH (/usr/sbin).${C_RESET}"
+    fi
+    wait_user
 fi
 
 # --- 5. Final Results ---
 clear
 draw_progress
 FREED_HUMAN=$(numfmt --to=iec-i --suffix=B $TOTAL_FREED)
-draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
-
-# Reboot confirmation question comes BEFORE the last page
 if [ -f /var/run/reboot-required ]; then
+    draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
     echo -e "${C_WARN}${C_BOLD}ATTENTION: REBOOT REQUIRED${C_RESET}"
     echo -ne "\n${C_PROMPT}Reboot now? [y/N]${C_RESET} "
     read -r resp
     if [ "$resp" = "y" ] || [ "$resp" = "Y" ]; then
         sudo reboot
     fi
+else
+    draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
+    echo -e "${C_PROMPT}System optimized. No reboot needed.${C_RESET}"
+    wait_user
 fi
-wait_user
 
 # --- 6. Exit ---
 clear
 STEP=$TOTAL_STEPS
 draw_progress
-# "No reboot needed" is now correctly placed in the last page frame
-if [ -f /var/run/reboot-required ]; then
-    draw_header "Goodbye" "Process complete. Reboot pending."
-else
-    draw_header "Goodbye" "System optimized. No reboot needed."
-fi
-sleep 2
+draw_header "Goodbye" "Process complete."
+sleep 1
 kill $(ps -ho ppid -p $(ps -ho ppid -p $$)) 2>/dev/null
 exit 0
