@@ -66,11 +66,15 @@ echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo "Thanks"
 
-# 2.1 APT GHOST-BUSTER (Strict Truth)
+# 2.1 APT TRUTH PROBE (Detects exactly what apt-get upgrade sees)
 sudo nala update >/dev/null 2>&1
-APT_COUNT=$(apt list --upgradeable 2>/dev/null | grep -c "\[upgradeable from:\]")
+# We simulate an upgrade and count the lines in the "Inst" (Install/Upgrade) list
+APT_COUNT=$(apt-get upgrade -s 2>/dev/null | grep -c "^Inst")
+
 APT_UP=true
-[ "$APT_COUNT" -gt 0 ] && APT_UP=false
+if [ "$APT_COUNT" -gt 0 ]; then
+    APT_UP=false
+fi
 
 # 2.2 FLATPAK (Dry-Run Verification)
 FP_UP=true
@@ -250,13 +254,27 @@ else
     wait_user
 fi
 
-# --- 5. Final Results ---
+# --- 5. Final Results & Interactive Reboot ---
 clear
 draw_progress
 FREED_HUMAN=$(numfmt --to=iec-i --suffix=B $(( TOTAL_FREED > 0 ? TOTAL_FREED : 0 )))
 draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
-[ -f /var/run/reboot-required ] && echo -e "${C_WARN}${C_BOLD}ATTENTION: REBOOT REQUIRED${C_RESET}"
-wait_user
+
+if [ -f /var/run/reboot-required ]; then
+    echo -e "${C_WARN}${C_BOLD}ATTENTION: A REBOOT IS REQUIRED TO FINISH UPDATES.${C_RESET}"
+    echo -ne "\n${C_PROMPT}Would you like to reboot now? [y/N] ${C_RESET}"
+    read -r reboot_resp
+    if [[ "$reboot_resp" =~ ^[Yy]$ ]]; then
+        echo -e "${C_BOLD}Rebooting...${C_RESET}"
+        sudo reboot
+    else
+        echo -e "${C_WARN}Reboot postponed. Remember to restart soon.${C_RESET}"
+        wait_user
+    fi
+else
+    echo -e "${C_PROMPT}System optimized. No reboot needed.${C_RESET}"
+    wait_user
+fi
 
 # --- 6. Exit ---
 clear
