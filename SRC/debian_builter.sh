@@ -4,7 +4,7 @@
 
 # --- Configuration ---
 PKG_NAME="updatesys"
-PKG_VER="1.2.2"
+PKG_VER="1.3.1"
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PAYLOAD_DIR="${BASE_DIR}/Payload"
 BUILD_DIR="${BASE_DIR}/build_workspace"

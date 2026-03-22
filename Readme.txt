@@ -57,4 +57,14 @@ Change log:
                      - Added DKMS Integrity Check for post-upgrade
                        driver verification.
 
+-V1.2.3  22-03-2026: The "Sid Sentinel" Security Patch.
+                      - Added "Domino Effect" detector: Script triggers
+                        Emergency Brake if critical components (KDE/GNOME)
+                        or >5 packages are marked for removal.
+                      - Integrated Manual Override for legitimate major
+                        transitions (e.g., KDE 5 to 6).
+                      - Fixed UI overlap glitch with smart screen clears.
+                      - Upgraded probe to dist-upgrade simulation for
+                        high-accuracy detection during repo syncs.
+
 ##################################################################

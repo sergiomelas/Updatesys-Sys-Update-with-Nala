@@ -13,7 +13,7 @@ export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 C_BORDER='\e[96m'; C_TEXT='\e[97m'; C_BOLD='\e[1m'; C_WARN='\e[93m'
 C_PROMPT='\e[92m'; C_NALA_G='\e[32m'; C_NALA_R='\e[31m'; C_RESET='\e[0m'
 
-# --- 1. Progress Engine ---
+# --- 1. Progress Engine and helpers---
 STEP=1
 TOTAL_STEPS=15
 TOTAL_FREED=0
@@ -55,7 +55,55 @@ draw_separator() {
 wait_user() {
     echo -ne "\n${C_WARN}Press any key to continue...${C_RESET} "
     read -n 1 -s -r
+    echo ""
     ((STEP++))
+}
+
+explain_danger() {
+    local list="$1"
+    # Changed header to Yellow (C_WARN)
+    echo -e "${C_WARN}${C_BOLD}Analysis of Risk:${C_RESET}"
+
+    # Check for Input Methods - Yellow
+    if echo "$list" | grep -Ei "fcitx|uim|ibus|anthy" >/dev/null; then
+        echo -e " ${C_WARN}󰟷${C_RESET} Removal of ${C_BOLD}Input Methods${C_RESET} (Non-Latin typing may break)."
+    fi
+
+    # Check for Desktop Environment - Changed from Red to Yellow
+    if echo "$list" | grep -Ei "gnome|plasma|kde|xfce|sway|kwin|mutter" >/dev/null; then
+        echo -e " ${C_WARN}󰍹${C_RESET} Removal of ${C_BOLD}Desktop Components${C_RESET} (GUI may fail to start)."
+    fi
+
+    # Check for Graphics/Drivers - Yellow
+    if echo "$list" | grep -Ei "nvidia|mesa|xserver|wayland|drm" >/dev/null; then
+        echo -e " ${C_WARN}󰢮${C_RESET} Removal of ${C_BOLD}Display Drivers${C_RESET} (Screen/3D issues)."
+    fi
+
+    # Check for System Core - Changed from Red to Yellow
+    if echo "$list" | grep -Ei "libc6|systemd|init|udev" >/dev/null; then
+        echo -e " ${C_WARN}󰒔${C_RESET} Removal of ${C_BOLD}System Core${C_RESET} (OS likely to break)."
+    fi
+
+    # Check for Fragmentation (The "Kept Back" problem) - MULTILINE FIX
+    if [[ "$KEPT_BACK_COUNT" -gt 50 ]]; then
+        echo -e " ${C_WARN}󰔶${C_RESET} Notice: ${C_BOLD}$KEPT_BACK_COUNT packages${C_RESET} are being 'kept back'."
+        echo -e "   ${C_WARN}Alert:${C_RESET} Repository Mismatch Detected. Proceeding now will leave"
+        echo -e "   your system in an unstable, partial upgrade state because"
+        echo -e "   many dependencies are currently 'held back'."
+    fi
+
+    # Major Version Transitions (Dynamic check)
+    if [[ "$REMOVAL_COUNT" -gt 15 ]]; then
+        local V_CHANGE=$(echo "$SIM_OUT" | grep -Ei "remv|inst" | grep -oEi "lib(kf[5-9]|qt[5-9]|gnome[0-9])" | sort -u | wc -l)
+        if [ "$V_CHANGE" -gt 1 ]; then
+            echo -e " ${C_PROMPT}󰔶${C_RESET} Notice: This appears to be a ${C_BOLD}Major Version Transition${C_RESET}."
+            echo -e "   (Old libraries are being swapped for newer versions)."
+        fi
+    fi
+    # Check for Replacements (Swapping fcitx5 for fcitx, etc.)
+    if echo "$SIM_OUT" | grep -q "NEW packages will be installed"; then
+        echo -e " ${C_PROMPT}󰁯${C_RESET} Note: Some removed packages have ${C_BOLD}replacements${C_RESET} pending."
+    fi
 }
 
 # --- 2. Initial Check ---
@@ -66,43 +114,119 @@ echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo "Thanks"
 
-# 2.1 APT TRUTH PROBE (Detects exactly what apt-get upgrade sees)
+# 2.1 APT TRUTH PROBE (Simulating Full-Upgrade for Sid Transitions)
 sudo nala update >/dev/null 2>&1
-# We simulate an upgrade and count the lines in the "Inst" (Install/Upgrade) list
-APT_COUNT=$(apt-get upgrade -s 2>/dev/null | grep -c "^Inst")
+# We capture the full simulation of a dist-upgrade to see the REAL plan
+SIM_OUT=$(apt-get dist-upgrade -s 2>/dev/null)
+
+# Logic: Count "Inst" lines to see if there are updates available
+APT_COUNT=$(echo "$SIM_OUT" | grep -c "^Inst")
 
 APT_UP=true
 if [ "$APT_COUNT" -gt 0 ]; then
     APT_UP=false
 fi
 
-# 2.2 FLATPAK (Dry-Run Verification)
+# 2.2 FLATPAK (The "Safe & Certain" Probe)
 FP_UP=true
 if command -v flatpak &>/dev/null; then
-    if flatpak update --dry-run 2>&1 | grep -iqE "ID|Installing|Updating"; then
+    # We pipe 'n' into the update command to see the table without installing
+    if echo "n" | sudo flatpak update 2>&1 | grep -iqE "ID|Updating|Installing"; then
         FP_UP=false
     fi
 fi
 
-# 2.3 SNAP (Refresh-List Verification)
+# 2.3 SNAP (Strict refresh check)
 SNAP_UP=true
 if command -v snap &>/dev/null; then
-    if ! sudo snap refresh --list 2>&1 | grep -iqE "up to date|no updates"; then
+    # Filter out the "All snaps up to date" text and count real lines
+    if [ -n "$(sudo snap refresh --list 2>&1 | grep -v 'All snaps up to date')" ]; then
         SNAP_UP=false
     fi
 fi
 
+# 2.4 SID SENTINEL (Domino Effect & Mass Removal Detection)
+MAX_DELETIONS=5
+# Improved removal count: captures both forced 'Remv' and 'will be REMOVED' blocks
+REMOVAL_LIST=$(echo "$SIM_OUT" | grep -Ei "^Remv |will be REMOVED" | grep -v "installed" | awk '{print $2}')
+REMOVAL_COUNT=$( [ -z "$REMOVAL_LIST" ] && echo 0 || echo "$REMOVAL_LIST" | wc -l )
+
+# Critical hits (Core Desktop components)
+CRITICAL_HIT=$(echo "$REMOVAL_LIST" | grep -Ei "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland")
+
+# Fragmentation Check: Extract the number from the "...and 207 not upgraded" string
+KEPT_BACK_COUNT=$(echo "$SIM_OUT" | grep "not upgraded" | grep -oEi "[0-9]+ not upgraded" | awk '{print $1}')
+[ -z "$KEPT_BACK_COUNT" ] && KEPT_BACK_COUNT=0
+
+APT_DANGER=false
+# Trigger danger if:
+# 1. Mass removal (>5)
+# 2. Critical component hit
+# 3. High fragmentation (>50 packages kept back - indicates a broken repo state)
+if [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ] || [ -n "$CRITICAL_HIT" ] || [ "$KEPT_BACK_COUNT" -gt 50 ]; then
+    APT_DANGER=true
+fi
+
 # --- 3. Update Branch ---
+# 3.0 EMERGENCY BRAKE
+    if [ "$APT_DANGER" = "true" ]; then
+        clear
+        draw_progress
+        draw_header "!!! DANGER DETECTED !!!" "Potential System Destruction Found"
+
+        # Call the risk translator
+        explain_danger "$REMOVAL_LIST"
+
+        echo -ne "\n${C_NALA_R}${C_BOLD}Technical Removal List (Summary):${C_RESET}\n"
+
+        # Show only first 10 packages to keep the UI clean
+        echo "$REMOVAL_LIST" | head -n 10 | sed 's/^/  - /'
+
+        # If there are more than 10, show the remaining count
+        if [ "$REMOVAL_COUNT" -gt 10 ]; then
+            echo -e "  ${C_BORDER}... and $((REMOVAL_COUNT - 10)) more packages.${C_RESET}"
+        fi
+
+        echo -e "\n${C_BOLD}Trigger:${C_RESET} $([ -n "$CRITICAL_HIT" ] && echo "Critical system component hit!" || echo "Mass removal ($REMOVAL_COUNT packages) exceeds limit ($MAX_DELETIONS).")"
+
+        echo -ne "\n${C_PROMPT}Proceed anyway? (Check 'Analysis of Risk' above!) [y/N]: ${C_RESET}"
+        read -r danger_resp
+        if [[ ! "$danger_resp" =~ ^[Yy]$ ]]; then
+            echo -e "${C_WARN}APT Upgrade aborted. Skipping to other managers...${C_RESET}"
+            APT_UP=true
+            wait_user
+            clear
+        fi
+    fi
+
+# 3.0 Proceed
+
 if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
     ((STEP+=6))
     draw_header "Status" "System is already fully up to date."
     wait_user
 else
     # 3.1 Standard Upgrade
-    ((STEP++))
+    draw_header "Update Pending" "Avalible Upgrades"
+
+    if [ "$APT_UP" = "false" ]; then
+        echo -ne "\n${C_WARN}- APT Upgrades${C_RESET} "
+    fi
+
+    if [ "$FP_UP" = "false" ]; then
+        echo -ne "\n${C_WARN}- FLATPAK Upgrades${C_RESET} "
+    fi
+
+    if [ "$SNAP_UP" = "false" ]; then
+        echo -ne "\n${C_WARN}- SNAP Upgrades${C_RESET} "
+    fi
+
+    wait_user
     clear
     draw_progress
     draw_header "Update Pending" "Performing standard package upgrade"
+
+
     if [ "$APT_UP" = "false" ]; then
         sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
     fi
