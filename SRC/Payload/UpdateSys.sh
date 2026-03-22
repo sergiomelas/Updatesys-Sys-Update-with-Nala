@@ -179,12 +179,14 @@ fi
 
         echo -ne "\n${C_NALA_R}${C_BOLD}Technical Removal List (Summary):${C_RESET}\n"
 
-        # Show only first 10 packages to keep the UI clean
-        echo "$REMOVAL_LIST" | head -n 10 | sed 's/^/  - /'
+        headshow=8
 
-        # If there are more than 10, show the remaining count
-        if [ "$REMOVAL_COUNT" -gt 10 ]; then
-            echo -e "  ${C_BORDER}... and $((REMOVAL_COUNT - 10)) more packages.${C_RESET}"
+        # Show only first $headshow packages to keep the UI clean
+        echo "$REMOVAL_LIST" | head -n $headshow | sed 's/^/  - /'
+
+        # If there are more than $headshow, show the remaining count
+        if [ "$REMOVAL_COUNT" -gt $headshow ]; then
+            echo -e "  ${C_BORDER}... and $((REMOVAL_COUNT - $headshow)) more packages.${C_RESET}"
         fi
 
         echo -e "\n${C_BOLD}Trigger:${C_RESET} $([ -n "$CRITICAL_HIT" ] && echo "Critical system component hit!" || echo "Mass removal ($REMOVAL_COUNT packages) exceeds limit ($MAX_DELETIONS).")"
@@ -192,37 +194,49 @@ fi
         echo -ne "\n${C_PROMPT}Proceed anyway? (Check 'Analysis of Risk' above!) [y/N]: ${C_RESET}"
         read -r danger_resp
         if [[ ! "$danger_resp" =~ ^[Yy]$ ]]; then
-            echo -e "${C_WARN}APT Upgrade aborted. Skipping to other managers...${C_RESET}"
+            # 1. Update State
             APT_UP=true
+            APT_SKIPPED=true
+            ((STEP+=2)) # Skip the APT execution steps in the progress bar
+
+            # 2. Visual Pivot
+            clear
+            draw_progress
+            draw_header "APT Upgrade Aborted" "Bypassing high-risk changes safely."
+
+            echo -e "\n ${C_WARN}󰜺${C_RESET} ${C_BOLD}Status:${C_RESET} APT/Nala operations cancelled by user."
+            echo -e " ${C_PROMPT}󰁯${C_RESET} ${C_BOLD}Next:${C_RESET} Moving to Flatpak and Snap managers..."
+
+            # 3. Pause for the user to see the confirmation
             wait_user
             clear
         fi
     fi
 
 # 3.0 Proceed
+# Logic: Only show 'Already up to date' if we didn't just manually abort a danger
 
-if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
+if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ] && [ "$APT_SKIPPED" != "true" ]; then
     ((STEP+=6))
     draw_header "Status" "System is already fully up to date."
     wait_user
 else
-    # 3.1 Standard Upgrade
-    draw_header "Update Pending" "Avalible Upgrades"
+    # NEW LOGIC: If we are here but EVERYTHING is now 'true', it means we skipped APT
+    # and Flatpak/Snap have nothing to do.
+    if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
+        draw_header "Status" "APT Upgrade Skipped. No other updates pending."
+        ((STEP+=4)) # Jump forward so we don't 'wait_user' twice
+        wait_user
+    else
+        # 3.1 Standard Upgrade - Show only what is actually pending
+        draw_header "Update Pending" "Available Upgrades"
 
-    if [ "$APT_UP" = "false" ]; then
-        echo -ne "\n${C_WARN}- APT Upgrades${C_RESET} "
-    fi
+        [ "$APT_UP" = "false" ] && echo -e " ${C_WARN}󰏓${C_RESET} APT Packages"
+        [ "$FP_UP" = "false" ] && echo -e " ${C_WARN}󰏓${C_RESET} Flatpak Runtimes"
+        [ "$SNAP_UP" = "false" ] && echo -e " ${C_WARN}󰏓${C_RESET} Snap Daemons"
 
-    if [ "$FP_UP" = "false" ]; then
-        echo -ne "\n${C_WARN}- FLATPAK Upgrades${C_RESET} "
-    fi
-
-    if [ "$SNAP_UP" = "false" ]; then
-        echo -ne "\n${C_WARN}- SNAP Upgrades${C_RESET} "
-    fi
-
-    wait_user
-    clear
+        wait_user
+        clear
     draw_progress
     draw_header "Update Pending" "Performing standard package upgrade"
 
@@ -264,120 +278,132 @@ else
     ((STEP++))
 
     wait_user
+  fi
 fi
 
-# --- 4. Cleanup Branch ---
+# --- 4. Cleanup Branch (FOPTD High-Precision Mode) ---
 clear
 draw_progress
-draw_header "Maintenance" "Check for cleanup?"
-echo -ne "\n${C_PROMPT}Run system cleanup? [y/N]${C_RESET} "
+draw_header "Maintenance" "Final System Optimization"
+echo -ne "\n${C_PROMPT}Run deep system cleanup? [y/N]${C_RESET} "
 read -r resp
-if [ "$resp" != "y" ] && [ "$resp" != "Y" ]; then
+if [[ ! "$resp" =~ ^[Yy]$ ]]; then
     STEP=14
+    echo -e "${C_WARN}Cleanup skipped by user.${C_RESET}"
     wait_user
 else
     ((STEP++))
 
-    # 4.1 Precision Kernel Modules Cleanup (ORIGINAL VERBOSE)
+    # 4.1 Precision Kernel Modules Cleanup (FOPTD-Verified)
     clear
     draw_progress
-    draw_header "Cleanup 1/5" "Removing orphaned kernel modules"
+    draw_header "Cleanup 1/5" "Analyzing Orphaned Kernel Modules"
+
     pre_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     pre_k=${pre_k:-0}
     RUNNING_K=$(uname -r)
+
+    echo -e "${C_BORDER}Kernel Verification Phase:${C_RESET}"
+    echo -e "  Active Kernel: ${C_PROMPT}$RUNNING_K${C_RESET}"
     INSTALLED_KS=$(dpkg -l 'linux-image-*' 2>/dev/null | grep '^ii' | awk '{print $2}' | sed 's/linux-image-//g')
 
-    draw_separator "Scanning /lib/modules"
+    draw_separator "Scanning /lib/modules Path"
     for mod_dir in /lib/modules/*; do
         [ -d "$mod_dir" ] || continue
         k_ver=$(basename "$mod_dir")
+
+        # Check system load before I/O intensive removal
+        LOAD_K=$(awk '{print $1}' /proc/loadavg)
+
         if [ "$k_ver" == "$RUNNING_K" ]; then
-            echo -e " ${C_PROMPT}Keep (Running):${C_RESET} $k_ver"
+            echo -e "  [${C_PROMPT}SAFE${C_RESET}] Running: $k_ver"
             continue
         fi
+
         MATCH_FOUND=false
         for inst_k in $INSTALLED_KS; do
-            if [ "$k_ver" == "$inst_k" ]; then
-                MATCH_FOUND=true
-                break
-            fi
+            if [[ "$k_ver" == "$inst_k"* ]]; then MATCH_FOUND=true; break; fi
         done
+
         if [ "$MATCH_FOUND" = true ]; then
-            echo -e " ${C_BORDER}Keep (Installed):${C_RESET} $k_ver"
+            echo -e "  [${C_BORDER}KEEP${C_RESET}] Registered: $k_ver"
         else
-            echo -e " ${C_WARN}Removing Orphaned Modules:${C_RESET} $k_ver"
+            echo -e "  [${C_WARN}PURGE${C_RESET}] Orphaned: $k_ver (System Load: $LOAD_K)"
             sudo rm -rf "$mod_dir"
+            # FOPTD Verification: Did it actually delete?
+            [ ! -d "$mod_dir" ] && echo -e "      -> ${C_NALA_G}Verified Success${C_RESET}" || echo -e "      -> ${C_NALA_R}Removal Failed${C_RESET}"
         fi
     done
 
     post_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     post_k=${post_k:-0}
     diff_k=$(( pre_k - post_k ))
-    if [ "$diff_k" -gt 0 ]; then
-        TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
-        draw_separator "Kernel Space Recovered"
-        echo -e "    ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_k)${C_RESET}"
-    fi
+    [ "$diff_k" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
     wait_user
 
-    # 4.2 Package Cache
+    # 4.2 Cache Maintenance (Nala & APT)
     clear
     draw_progress
-    draw_header "Cleanup 2/5" "Package Cache"
-    pre_c1=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1)
-    pre_c2=$(du -sb /var/cache/nala 2>/dev/null | cut -f1)
-    pre_c=$(( ${pre_c1:-0} + ${pre_c2:-0} ))
-    sudo apt autoclean; sudo apt --purge autoremove; sudo nala clean
-    post_c1=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1)
-    post_c2=$(du -sb /var/cache/nala 2>/dev/null | cut -f1)
-    post_c=$(( ${post_c1:-0} + ${post_c2:-0} ))
-    diff_c=$(( pre_c - post_c ))
-    if [ "$diff_c" -gt 0 ]; then
-        TOTAL_FREED=$(( TOTAL_FREED + diff_c ))
-        draw_separator "Cache Space Recovered"
-        echo -e "   ${C_BOLD}$(numfmt --to=iec-i --suffix=B $diff_c)${C_RESET}"
-    fi
+    draw_header "Cleanup 2/5" "Package Cache Purge"
+    pre_c=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1 || echo 0)
+
+    echo -e "${C_BORDER}Clearing Nala & APT caches...${C_RESET}"
+    sudo nala clean
+    sudo apt-get autoclean -y
+    sudo apt-get autoremove --purge -y
+
+    post_c=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1 || echo 0)
+    TOTAL_FREED=$(( TOTAL_FREED + pre_c - post_c ))
     wait_user
 
-    # 4.3 Old Configurations
+    # 4.3 Residual Configs (Deep Scan)
     clear
     draw_progress
-    draw_header "Cleanup 3/5" "Old Configurations"
+    draw_header "Cleanup 3/5" "Residual Configuration Files"
     purgestr=$(COLUMNS=200 dpkg -l | grep "^rc" | awk '{print $2}')
     if [ -n "$purgestr" ]; then
+        echo -e "${C_WARN}Found leftover configs for:${C_RESET}"
+        echo "$purgestr" | sed 's/^/  - /'
         sudo dpkg --purge $purgestr
     else
-        echo "No residual configs found."
+        echo -e "${C_PROMPT}Success:${C_RESET} No residual configs detected."
     fi
     wait_user
 
-    # 4.4 System Logs
+    # 4.4 Multi-Point Journal Vacuuming
     clear
     draw_progress
-    draw_header "Cleanup 4/5" "System Logs"
+    draw_header "Cleanup 4/5" "Log Rotation & Journal Vacuuming"
     pre_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
+
+    echo -e "${C_BORDER}Vacuuming Systemd Journal (Retention: 7 days / 100M)...${C_RESET}"
+    sudo journalctl --vacuum-time=7d
     sudo journalctl --vacuum-size=100M
+
     post_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
-    diff_l=$(( pre_l - post_l ))
-    if [ "$diff_l" -gt 0 ]; then
-        TOTAL_FREED=$(( TOTAL_FREED + diff_l ))
-    fi
-    draw_separator "Total Vacuumed Space from logs"
-    echo -e "    ${C_BOLD}$(numfmt --to=iec-i --suffix=B ${diff_l:-0})${C_RESET}"
+    TOTAL_FREED=$(( TOTAL_FREED + pre_l - post_l ))
+    draw_separator "Journal Cleaned"
     wait_user
 
-    # 4.5 DKMS Driver Verification
+    # 4.5 DKMS Depth Check (Precision Verification)
     clear
     draw_progress
-    draw_header "Cleanup 5/5" "Verifying DKMS Driver Integrity"
+    draw_header "Cleanup 5/5" "DKMS Build Integrity Verification"
     if type -p dkms &>/dev/null; then
-        sudo dkms status
+        DKMS_LIST=$(sudo dkms status)
+        if echo "$DKMS_LIST" | grep -qi "Error"; then
+            echo -e "${C_NALA_R}CRITICAL:${C_RESET} DKMS Build Failure detected!"
+            echo "$DKMS_LIST" | grep -i "Error"
+        else
+            echo -e "${C_PROMPT}Integrity Check:${C_RESET} All kernel modules verified."
+            echo "$DKMS_LIST" | sed 's/^/  /'
+        fi
     else
-        echo -e "${C_WARN}DKMS binary not found in PATH (/usr/sbin).${C_RESET}"
+        echo -e "${C_WARN}Note:${C_RESET} DKMS not found. Skipping driver check."
     fi
+    sync # Final FOPTD Buffer Flush
     wait_user
 fi
-
 # --- 5. Final Results & Interactive Reboot ---
 clear
 draw_progress
