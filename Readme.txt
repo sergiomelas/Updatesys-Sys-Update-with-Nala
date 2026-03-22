@@ -57,7 +57,7 @@ Change log:
                      - Added DKMS Integrity Check for post-upgrade
                        driver verification.
 
--V1.2.3  22-03-2026: The "Sid Sentinel" Security Patch.
+-V1.3.1  22-03-2026: The "Sid Sentinel" Security Patch.
                       - Added "Domino Effect" detector: Script triggers
                         Emergency Brake if critical components (KDE/GNOME)
                         or >5 packages are marked for removal.
