@@ -67,4 +67,15 @@ Change log:
                      - Upgraded probe to dist-upgrade simulation for
                        high-accuracy detection during repo syncs.
 
+- V1.3.2  26-03-2026: The "Grand Master" Diagnostic & UX Update.
+                     - Integrated Live Heartbeat Engine: Replaced static
+                       probes with ASCII spinners [ / ] for real-time
+                       feedback during 5-minute network stalls.
+                     - Upgraded Explain Danger Logic: 16+ granular
+                       detection categories (Kernel, DE, Drivers, VPN, etc.)
+                       with a weighted Risk Scoring System.
+                     - Added Synergy Multipliers: Automatically flags
+                       "The Sid Trap" (Massive Removal + Repository
+                       Fragmentation) as a Critical Risk.
+
 ##################################################################

@@ -59,51 +59,152 @@ wait_user() {
     ((STEP++))
 }
 
+
 explain_danger() {
     local list="$1"
-    # Changed header to Yellow (C_WARN)
-    echo -e "${C_WARN}${C_BOLD}Analysis of Risk:${C_RESET}"
+    local risk_score=0
+    local hit_buffer=""
 
-    # Check for Input Methods - Yellow
-    if echo "$list" | grep -Ei "fcitx|uim|ibus|anthy" >/dev/null; then
-        echo -e " ${C_WARN}󰟷${C_RESET} Removal of ${C_BOLD}Input Methods${C_RESET} (Non-Latin typing may break)."
-    fi
+    # Helper to add to buffer
+    add_hit() { hit_buffer="${hit_buffer}\n ${1}"; ((risk_score += ${2})); }
 
-    # Check for Desktop Environment - Changed from Red to Yellow
-    if echo "$list" | grep -Ei "gnome|plasma|kde|xfce|sway|kwin|mutter" >/dev/null; then
-        echo -e " ${C_WARN}󰍹${C_RESET} Removal of ${C_BOLD}Desktop Components${C_RESET} (GUI may fail to start)."
+    # --- 1. CORE SYSTEM VITALITY (Critical) ---
+    if echo "$list" | grep -Ei "libc6|systemd|init|udev|kmod|dbus|pam|login" >/dev/null; then
+        add_hit "${C_NALA_R}󰒔 OS Core:${C_RESET} Base libraries/Init system targeted. High breakage risk." 40
     fi
 
-    # Check for Graphics/Drivers - Yellow
-    if echo "$list" | grep -Ei "nvidia|mesa|xserver|wayland|drm" >/dev/null; then
-        echo -e " ${C_WARN}󰢮${C_RESET} Removal of ${C_BOLD}Display Drivers${C_RESET} (Screen/3D issues)."
+    # --- 2. BOOTLOADER & ENCRYPTION ---
+    if echo "$list" | grep -Ei "grub|flash-kernel|dracut|initramfs|cryptsetup|luks|efibootmgr" >/dev/null; then
+        add_hit "${C_WARN}󰐥 Boot & Encryption:${C_RESET} Bootloader or LUKS hooks. System may not boot." 30
     fi
 
-    # Check for System Core - Changed from Red to Yellow
-    if echo "$list" | grep -Ei "libc6|systemd|init|udev" >/dev/null; then
-        echo -e " ${C_WARN}󰒔${C_RESET} Removal of ${C_BOLD}System Core${C_RESET} (OS likely to break)."
+    # --- 3. KERNEL & LOW-LEVEL HARDWARE ---
+    if echo "$list" | grep -Ei "linux-image|linux-headers|firmware-linux|microcode" >/dev/null; then
+        add_hit "${C_PROMPT}󰓅 Kernel/Firmware:${C_RESET} Active kernel or CPU microcode changes." 15
     fi
 
-    # Check for Fragmentation (The "Kept Back" problem) - MULTILINE FIX
-    if [[ "$KEPT_BACK_COUNT" -gt 50 ]]; then
-        echo -e " ${C_WARN}󰔶${C_RESET} Notice: ${C_BOLD}$KEPT_BACK_COUNT packages${C_RESET} are being 'kept back'."
-        echo -e "   ${C_WARN}Alert:${C_RESET} Repository Mismatch Detected. Proceeding now will leave"
-        echo -e "   your system in an unstable, partial upgrade state because"
-        echo -e "   many dependencies are currently 'held back'."
+    # --- 4. GRAPHICAL DESKTOPS (DE) ---
+    if echo "$list" | grep -Ei "gnome|plasma|kde|xfce|lxqt|mate|cinnamon|enlightenment" >/dev/null; then
+        add_hit "${C_WARN}󰍹 Desktop Env:${C_RESET} Major Desktop components removal." 25
     fi
 
-    # Major Version Transitions (Dynamic check)
-    if [[ "$REMOVAL_COUNT" -gt 15 ]]; then
-        local V_CHANGE=$(echo "$SIM_OUT" | grep -Ei "remv|inst" | grep -oEi "lib(kf[5-9]|qt[5-9]|gnome[0-9])" | sort -u | wc -l)
-        if [ "$V_CHANGE" -gt 1 ]; then
-            echo -e " ${C_PROMPT}󰔶${C_RESET} Notice: This appears to be a ${C_BOLD}Major Version Transition${C_RESET}."
-            echo -e "   (Old libraries are being swapped for newer versions)."
-        fi
+    # --- 5. WINDOW MANAGERS & COMPOSITORS ---
+    if echo "$list" | grep -Ei "kwin|mutter|sway|wlroots|weston|openbox|i3|hyprland|fluxbox" >/dev/null; then
+        add_hit "${C_WARN}󰨇 Window Manager:${C_RESET} Display orchestration components targeted." 20
     fi
-    # Check for Replacements (Swapping fcitx5 for fcitx, etc.)
-    if echo "$SIM_OUT" | grep -q "NEW packages will be installed"; then
-        echo -e " ${C_PROMPT}󰁯${C_RESET} Note: Some removed packages have ${C_BOLD}replacements${C_RESET} pending."
+
+    # --- 6. DISPLAY STACK & PROTOCOLS ---
+    if echo "$list" | grep -Ei "xserver|xorg|wayland|libx11|libwayland|xwayland" >/dev/null; then
+        add_hit "${C_PROMPT}󰢮 Display Stack:${C_RESET} X11 or Wayland protocols shifting." 15
     fi
+
+    # --- 7. GPU DRIVERS & ACCELERATION ---
+    if echo "$list" | grep -Ei "nvidia|mesa|vulkan|libdrm|intel-gpu|amdgpu|va-api|vdpau" >/dev/null; then
+        add_hit "${C_PROMPT}󰢮 Graphics Pipeline:${C_RESET} Driver or acceleration library removal." 15
+    fi
+
+    # --- 8. AUDIO SERVER & CODECS ---
+    if echo "$list" | grep -Ei "pipewire|pulseaudio|alsa|wireplumber|jackd|libavcodec|ffmpeg" >/dev/null; then
+        add_hit "${C_PROMPT}󰓃 Audio/Media:${C_RESET} Sound server or essential codecs." 10
+    fi
+
+    # --- 9. NETWORK & CONNECTIVITY ---
+    if echo "$list" | grep -Ei "network-manager|nmtui|wpasupplicant|iwd|bluez|bluetooth|modemmanager" >/dev/null; then
+        add_hit "${C_WARN}󰖩 Connectivity:${C_RESET} Loss of Wi-Fi, Ethernet, or Bluetooth likely." 20
+    fi
+
+    # --- 10. VPN & securuty PROTOCOLS ---
+    if echo "$list" | grep -Ei "openvpn|wireguard|strongswan|libssl|openssl|ca-certificates" >/dev/null; then
+        add_hit "${C_WARN}󰖂 VPN/Security:${C_RESET} SSL libraries or VPN tunnel engines." 15
+    fi
+
+    # --- 11. VIRTUALIZATION & CONTAINERS ---
+    if echo "$list" | grep -Ei "docker|containerd|qemu|libvirt|virtualbox|podman" >/dev/null; then
+        add_hit "${C_PROMPT}󰡄 Virtualization:${C_RESET} VM or Container workloads may fail." 10
+    fi
+
+    # --- 12. DEVELOPER TOOLCHAIN ---
+    if echo "$list" | grep -Ei "gcc-|clang-|binutils|make|dkms|cmake|python3" >/dev/null; then
+        add_hit "${C_PROMPT}󰅩 Toolchain:${C_RESET} Compilers or headers. Impacts driver builds." 10
+    fi
+
+    # --- 13. INPUT METHODS (Multilingual) ---
+    if echo "$list" | grep -Ei "fcitx|uim|ibus|anthy|hime|maliit" >/dev/null; then
+        add_hit "${C_WARN}󰟷 Input Methods:${C_RESET} Complex typing engines (CJK/Phonetic)." 15
+    fi
+
+    # --- 14. FILESYSTEM TOOLS ---
+    if echo "$list" | grep -Ei "btrfs-progs|xfsprogs|e2fsprogs|ntfs-3g|zfsutils" >/dev/null; then
+        add_hit "${C_WARN}󰋊 Filesystem:${C_RESET} Disk management tools. Dangerous for RAID/Btrfs." 25
+    fi
+
+    # --- 15. PRINTERS & PERIPHERALS ---
+    if echo "$list" | grep -Ei "cups|sane|avahi|ghostscript" >/dev/null; then
+        add_hit "${C_PROMPT}󰐪 Peripherals:${C_RESET} Printing or Scanning support removal." 5
+    fi
+
+    # --- 16. SID TRANSITION STATUS ---
+    if [[ "$KEPT_BACK_COUNT" -gt 10 ]]; then
+        add_hit "${C_WARN}󰔶 Fragmentation:${C_RESET} $KEPT_BACK_COUNT packages are held back (Stall)." 20
+    fi
+
+    # --- 17. THE "SID TRAP" SYNERGY (Multipliers) ---
+    # Detects if we are removing input/DE components while the repo is stalled
+    if [[ "$KEPT_BACK_COUNT" -gt 100 ]] && echo "$list" | grep -Ei "fcitx|uim|plasma|kwin|gnome" >/dev/null; then
+        add_hit "${C_NALA_R}󰔶 CRITICAL SYNERGY:${C_RESET} Removal during massive stall. Reinstall will fail." 40
+    fi
+
+    # Detect Major Version Transitions (Qt/Frameworks)
+    local V_CHANGE=$(echo "$SIM_OUT" | grep -Ei "remv|inst" | grep -oEi "lib(kf[5-9]|qt[5-9]|gnome[0-9]|gtk[3-5]|glib[0-9])" | sort -u | wc -l)
+    if [ "$V_CHANGE" -gt 1 ]; then
+        add_hit "${C_PROMPT}󰔶 Transition:${C_RESET} Major library version jump detected (e.g. Qt5->6)." 15
+    fi
+
+    # --- OUTPUT INTERFACE ---
+    draw_separator "DETAILED RISK ASSESSMENT"
+
+    # System Status Summary
+    echo -e "${C_BOLD}System Audit Summary:${C_RESET}"
+    echo -e " 󱔗 Packages Kept Back: ${C_WARN}${KEPT_BACK_COUNT}${C_RESET}"
+    echo -e " 󰆴 Packages to Remove: ${C_NALA_R}${REMOVAL_COUNT}${C_RESET}"
+
+    echo -e "\n${C_BOLD}Detection Categories Found:${C_RESET}"
+    echo -e "$hit_buffer"
+
+    echo -ne "\n${C_BOLD}TOTAL RISK SCORE:${C_RESET} "
+    if [ $risk_score -ge 75 ]; then
+        echo -e "${C_NALA_R}${risk_score} - CRITICAL (Manual Abort Recommended)${C_RESET}"
+    elif [ $risk_score -ge 45 ]; then
+        echo -e "${C_WARN}${risk_score} - HIGH (Backup Required)${C_RESET}"
+    else
+        echo -e "${C_PROMPT}${risk_score} - MODERATE (Standard Sid Flow)${C_RESET}"
+    fi
+}
+
+# --- Helper: The Spinner Engine ---
+# This is a safe version that won't orphan processes
+start_spinner() {
+    local msg="$1"
+    echo -ne "${C_BORDER}󰏓 ${msg}... ${C_RESET}"
+    # Start the spinner in a subshell
+    (
+        local delay=0.1
+        local spinstr='|/-\'
+        while [ true ]; do
+            local temp=${spinstr#?}
+            printf " [%c]  " "$spinstr"
+            local spinstr=$temp${spinstr%"$temp"}
+            sleep $delay
+            printf "\b\b\b\b\b\b"
+        done
+    ) &
+    SPIN_PID=$!
+}
+
+stop_spinner() {
+    kill $SPIN_PID >/dev/null 2>&1
+    wait $SPIN_PID 2>/dev/null
+    echo -ne "\b\b\b\b\b\b" # Clean up the spinner characters
 }
 
 # --- 2. Initial Check ---
@@ -112,36 +213,53 @@ draw_progress
 draw_header "Initial Check" "Analyzing all package managers..."
 echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
-echo "Thanks"
+echo -e "Thanks\n"
 
-# 2.1 APT TRUTH PROBE (Simulating Full-Upgrade for Sid Transitions)
+# 2.1 APT/NALA TRUTH PROBE
+start_spinner "APT/Nala: Updating Repositories"
 sudo nala update >/dev/null 2>&1
-# We capture the full simulation of a dist-upgrade to see the REAL plan
-SIM_OUT=$(apt-get dist-upgrade -s 2>/dev/null)
+stop_spinner
+echo -e "${C_NALA_G}Done${C_RESET}"
 
-# Logic: Count "Inst" lines to see if there are updates available
+start_spinner "APT/Nala: Probing Sid Transitions"
+SIM_OUT=$(apt-get dist-upgrade -s 2>/dev/null)
 APT_COUNT=$(echo "$SIM_OUT" | grep -c "^Inst")
+stop_spinner
 
 APT_UP=true
 if [ "$APT_COUNT" -gt 0 ]; then
     APT_UP=false
+    echo -e "${C_WARN}Updates Found ($APT_COUNT)${C_RESET}"
+else
+    echo -e "${C_NALA_G}Up to date${C_RESET}"
 fi
 
-# 2.2 FLATPAK (The "Safe & Certain" Probe)
-FP_UP=true
+# 2.2 FLATPAK
 if command -v flatpak &>/dev/null; then
-    # We pipe 'n' into the update command to see the table without installing
+    start_spinner "Flatpak:  Checking Runtimes"
+    FP_UP=true
     if echo "n" | sudo flatpak update 2>&1 | grep -iqE "ID|Updating|Installing"; then
         FP_UP=false
+        stop_spinner
+        echo -e "${C_WARN}Updates Found${C_RESET}"
+    else
+        stop_spinner
+        echo -e "${C_NALA_G}Up to date${C_RESET}"
     fi
 fi
 
-# 2.3 SNAP (Strict refresh check)
-SNAP_UP=true
+# 2.3 SNAP
 if command -v snap &>/dev/null; then
-    # Filter out the "All snaps up to date" text and count real lines
-    if [ -n "$(sudo snap refresh --list 2>&1 | grep -v 'All snaps up to date')" ]; then
+    start_spinner "Snap:     Checking Refresh List"
+    SNAP_UP=true
+    # We store the result to check it after the spinner stops
+    SNAP_CHECK=$(sudo snap refresh --list 2>&1 | grep -v 'All snaps up to date')
+    stop_spinner
+    if [ -n "$SNAP_CHECK" ]; then
         SNAP_UP=false
+        echo -e "${C_WARN}Updates Found${C_RESET}"
+    else
+        echo -e "${C_NALA_G}Up to date${C_RESET}"
     fi
 fi
 
@@ -281,7 +399,7 @@ else
   fi
 fi
 
-# --- 4. Cleanup Branch (FOPTD High-Precision Mode) ---
+# --- 4. Cleanup Branch ( High-Precision Mode) ---
 clear
 draw_progress
 draw_header "Maintenance" "Final System Optimization"
@@ -294,7 +412,7 @@ if [[ ! "$resp" =~ ^[Yy]$ ]]; then
 else
     ((STEP++))
 
-    # 4.1 Precision Kernel Modules Cleanup (FOPTD-Verified)
+    # 4.1 Precision Kernel Modules Cleanup
     clear
     draw_progress
     draw_header "Cleanup 1/5" "Analyzing Orphaned Kernel Modules"
@@ -330,7 +448,7 @@ else
         else
             echo -e "  [${C_WARN}PURGE${C_RESET}] Orphaned: $k_ver (System Load: $LOAD_K)"
             sudo rm -rf "$mod_dir"
-            # FOPTD Verification: Did it actually delete?
+            # Verification: Did it actually delete?
             [ ! -d "$mod_dir" ] && echo -e "      -> ${C_NALA_G}Verified Success${C_RESET}" || echo -e "      -> ${C_NALA_R}Removal Failed${C_RESET}"
         fi
     done
@@ -401,7 +519,7 @@ else
     else
         echo -e "${C_WARN}Note:${C_RESET} DKMS not found. Skipping driver check."
     fi
-    sync # Final FOPTD Buffer Flush
+    sync # Final  Buffer Flush
     wait_user
 fi
 # --- 5. Final Results & Interactive Reboot ---
