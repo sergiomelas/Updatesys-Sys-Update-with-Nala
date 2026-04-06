@@ -78,4 +78,17 @@ Change log:
                        "The Sid Trap" (Massive Removal + Repository
                        Fragmentation) as a Critical Risk.
 
+-V1.3.3   06-04-2026: The "Sentinel Precision" Update.
+                     - Regex Hardening: Re-engineered package extraction
+                       to eliminate version metadata and brackets from
+                       the Technical Removal List.
+                     - Autoremove Awareness: Integrated "no longer required"
+                       block into Sentinel probe to detect silent
+                       input-method (uim/fcitx) deletions.
+                     - Dynamic UI Masking: Implemented conditional display
+                       to hide empty Removal List headers/bullets.
+                     - Fragmentation Trigger: Added MAX_KEPT_BACK constant
+                       to correctly identify repository stalls as the
+                       primary brake trigger.
+
 ##################################################################

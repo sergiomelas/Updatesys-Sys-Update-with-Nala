@@ -263,51 +263,65 @@ if command -v snap &>/dev/null; then
     fi
 fi
 
-# 2.4 SID SENTINEL (Domino Effect & Mass Removal Detection)
+# --- 2.4 SID SENTINEL (Precision Regex Fix) ---
 MAX_DELETIONS=5
-# Improved removal count: captures both forced 'Remv' and 'will be REMOVED' blocks
-REMOVAL_LIST=$(echo "$SIM_OUT" | grep -Ei "^Remv |will be REMOVED" | grep -v "installed" | awk '{print $2}')
-REMOVAL_COUNT=$( [ -z "$REMOVAL_LIST" ] && echo 0 || echo "$REMOVAL_LIST" | wc -l )
+MAX_KEPT_BACK=50
 
-# Critical hits (Core Desktop components)
-CRITICAL_HIT=$(echo "$REMOVAL_LIST" | grep -Ei "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland")
+# 1. Capture the REMOVED block
+REMOVAL_LIST_CLEAN=$(echo "$SIM_OUT" | awk '/to be REMOVED:/,/installed:/' | grep -vE "REMOVED|installed|following" | tr -s ' ' '\n' | sed 's/[():]//g' | grep -E '^[a-z0-0][a-z0-9.+-]+$' | sort -u)
 
-# Fragmentation Check: Extract the number from the "...and 207 not upgraded" string
+# 2. Capture the AUTOREMOVE block
+AUTOREM_LIST=$(echo "$SIM_OUT" | awk '/no longer required:/,/Use .sudo apt autoremove./' | grep -vE "required|autoremove|following" | tr -s ' ' '\n' | sed 's/[():]//g' | grep -E '^[a-z0-0][a-z0-9.+-]+$' | sort -u)
+
+# 3. Combine and filter out version numbers (anything starting with a bracket or number)
+FULL_REMOVAL_LIST=$(echo -e "${REMOVAL_LIST_CLEAN}\n${AUTOREM_LIST}" | grep -vE "^\[|^[0-9]" | sed '/^$/d' | sort -u)
+REMOVAL_COUNT=$(echo "$FULL_REMOVAL_LIST" | grep -v "^$" | wc -l)
+
+# 4. Critical hits (Core Desktop & Input components)
+CRITICAL_HIT=$(echo "$FULL_REMOVAL_LIST" | grep -Ei "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus")
+
+# 5. Fragmentation Check
 KEPT_BACK_COUNT=$(echo "$SIM_OUT" | grep "not upgraded" | grep -oEi "[0-9]+ not upgraded" | awk '{print $1}')
 [ -z "$KEPT_BACK_COUNT" ] && KEPT_BACK_COUNT=0
 
 APT_DANGER=false
-# Trigger danger if:
-# 1. Mass removal (>5)
-# 2. Critical component hit
-# 3. High fragmentation (>50 packages kept back - indicates a broken repo state)
-if [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ] || [ -n "$CRITICAL_HIT" ] || [ "$KEPT_BACK_COUNT" -gt 50 ]; then
+if [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ] || [ -n "$CRITICAL_HIT" ] || [ "$KEPT_BACK_COUNT" -gt "$MAX_KEPT_BACK" ]; then
     APT_DANGER=true
 fi
 
 # --- 3. Update Branch ---
 # 3.0 EMERGENCY BRAKE
-    if [ "$APT_DANGER" = "true" ]; then
+# --- 3. Update Branch ---
+if [ "$APT_DANGER" = "true" ]; then
         clear
         draw_progress
         draw_header "!!! DANGER DETECTED !!!" "Potential System Destruction Found"
 
-        # Call the risk translator
-        explain_danger "$REMOVAL_LIST"
+        # Call the risk translator with the COMPREHENSIVE list
+        explain_danger "$FULL_REMOVAL_LIST"
 
-        echo -ne "\n${C_NALA_R}${C_BOLD}Technical Removal List (Summary):${C_RESET}\n"
+        # --- MASKING LOGIC: Only show list if there is actually something to remove ---
+        if [ "$REMOVAL_COUNT" -gt 0 ]; then
+            echo -ne "\n${C_NALA_R}${C_BOLD}Technical Removal List (Summary):${C_RESET}\n"
+            headshow=8
+            echo "$FULL_REMOVAL_LIST" | head -n $headshow | sed 's/^/  - /'
 
-        headshow=8
-
-        # Show only first $headshow packages to keep the UI clean
-        echo "$REMOVAL_LIST" | head -n $headshow | sed 's/^/  - /'
-
-        # If there are more than $headshow, show the remaining count
-        if [ "$REMOVAL_COUNT" -gt $headshow ]; then
-            echo -e "  ${C_BORDER}... and $((REMOVAL_COUNT - $headshow)) more packages.${C_RESET}"
+            if [ "$REMOVAL_COUNT" -gt $headshow ]; then
+                echo -e "  ${C_BORDER}... and $((REMOVAL_COUNT - $headshow)) more packages.${C_RESET}"
+            fi
         fi
 
-        echo -e "\n${C_BOLD}Trigger:${C_RESET} $([ -n "$CRITICAL_HIT" ] && echo "Critical system component hit!" || echo "Mass removal ($REMOVAL_COUNT packages) exceeds limit ($MAX_DELETIONS).")"
+        # --- Dynamic Trigger Logic ---
+        echo -ne "\n${C_BOLD}Trigger: ${C_RESET}"
+        if [ -n "$CRITICAL_HIT" ]; then
+            echo -e "${C_NALA_R}Critical system component hit!${C_RESET}"
+        elif [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ]; then
+            echo -e "${C_WARN}Mass removal ($REMOVAL_COUNT packages) exceeds limit ($MAX_DELETIONS).${C_RESET}"
+        elif [ "$KEPT_BACK_COUNT" -gt "$MAX_KEPT_BACK" ]; then
+            echo -e "${C_WARN}High Fragmentation detected ($KEPT_BACK_COUNT packages held back).${C_RESET}"
+        else
+            echo "Security Audit triggered."
+        fi
 
         echo -ne "\n${C_PROMPT}Proceed anyway? (Check 'Analysis of Risk' above!) [y/N]: ${C_RESET}"
         read -r danger_resp
