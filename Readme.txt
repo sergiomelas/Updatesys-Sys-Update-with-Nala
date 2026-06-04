@@ -34,22 +34,26 @@ Desktop entry (Icon) is automatically created in System Tools.
 ##################################################################
 Change log:
 
- -V1.0   20-02-2026:  - Universal Terminal support added.
+ -V1.0   20-02-2026:  The "baby" First Public version on GITHUB
+                      - Universal Terminal support added.
                       - Removed strict Konsole dependency.
                       - Enhanced regex for silent update detection.
 
- -V1.1   03-03-2026:  - Added progress bar and improved workflow.
+ -V1.1   03-03-2026:  The "handsome" interlace overhaul
+                      - Added progress bar and improved workflow.
                       - Added calculation of freed space by cleaner.
 
- -V1.2   05-03-2026:  - Precision Kernel Maintenance.
+ -V1.2   05-03-2026:  The "Wise Administrator" integrate kerne maintenance and cleanups
+                      - Precision Kernel Maintenance.
                       - Shifted logic from simple string patterns (amd64)
                         to verifying against dpkg 'linux-image' status
                         and active uname -r.
- -V1.2.1 06-03-2026:  - Corrected Session Savings calculation
+ -V1.2.1 06-03-2026:
+                      - Corrected Session Savings calculation
                        logic for cache cleaning.
                       - Updated Icon
 
- -V1.2.2 09-03-2026: Major Logic Overhaul for Sid.
+ -V1.2.2 09-03-2026:  The "Baby Sentinel" Major Logic Overhaul for Sid disaster avoidance.
                      - Implemented strict Simulation (Dry-Run)
                        checks to eliminate false "Update" prompts.
                      - Surgical Page Consolidation: Only managers
@@ -57,7 +61,7 @@ Change log:
                      - Added DKMS Integrity Check for post-upgrade
                        driver verification.
 
- -V1.3.1  22-03-2026: The "Sid Sentinel" Security Patch.
+ -V1.3.1  22-03-2026: The "Sid Sentinel" Security Patch to avoid residual disaster.
                      - Added "Domino Effect" detector: Script triggers
                        Emergency Brake if critical components (KDE/GNOME)
                        or >5 packages are marked for removal.
@@ -78,7 +82,7 @@ Change log:
                        "The Sid Trap" (Massive Removal + Repository
                        Fragmentation) as a Critical Risk.
 
--V1.3.3   06-04-2026: The "Sentinel Precision" Update.
+-V1.3.3   20-04-2026: The "Sentinel Precision" Update.
                      - Regex Hardening: Re-engineered package extraction
                        to eliminate version metadata and brackets from
                        the Technical Removal List.
@@ -90,5 +94,19 @@ Change log:
                      - Fragmentation Trigger: Added MAX_KEPT_BACK constant
                        to correctly identify repository stalls as the
                        primary brake trigger.
+                     - Incresed window size to av oid scrolling
+
+-V1.3.4   03-06-2026: The "Surgical Precision Sniper" Update.
+                     - Line-by-Line Sniper Method: Re-engineered data capture
+                       away from fragile block-slicing (awk paragraphs) to direct
+                       line tracing (^Remv and Inst brackets). Completely eliminates
+                       false removal/autoremove alerts during clean update waves.
+                     - Semantic Buffer Reporting: Calibrated the Safe Path reporting
+                       logic to display "Up to X packages available" to gracefully
+                       handle the solver policy variations between apt-get and Nala.
+                     - Network-Resilient Snap Handling: Integrated network exit-status
+                       checks ($?) into the Snap manager to gracefully mask API/IPv6
+                       DNS stalls with a clean "Network Error" UI message instead of
+                       crashing or hanging.
 
 ##################################################################

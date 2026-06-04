@@ -18,6 +18,61 @@ STEP=1
 TOTAL_STEPS=15
 TOTAL_FREED=0
 
+show_logo() {
+    clear
+    # --- Local Color Definitions ---
+    local G='\e[92m'  # Light Green
+    local B='\e[1m'   # Bold
+    local W='\e[97m'  # White
+    local R='\e[0m'   # Reset
+
+    # --- Dynamic Telemetry ---
+    local ARCH=$(uname -m)
+    local KERNEL=$(uname -r | cut -d'-' -f1)
+    local RISK_STATUS="MONITORING"
+    local RISK_COL=$G
+
+    if [ "$FULL_DANGER" = "true" ]; then RISK_STATUS="CAUTION"; RISK_COL='\e[93m'; fi
+    if [ "$UPGRADE_DANGER" = "true" ]; then RISK_STATUS="CRITICAL"; RISK_COL='\e[91m'; fi
+
+    # 1. FIGlet Style Header
+    echo -e "${G}${B}"
+    cat << 'EOF'
+                _   _ ____  ____    _  _____ _____ _______   ______
+               | | | |  _ \|  _ \  / \|_   _| ____/ ___/\ \ / / ___|
+               | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \
+               | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |
+                \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/
+
+EOF
+
+    # 2. Sub-Header
+    echo -e "          ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"
+
+    # 3. IBM Data Box (Internal width is 27 chars)
+    echo -e "${G}"
+    echo -e "                           _______________________________"
+    echo -e "                          |  ___________________________  |"
+    echo -e "                          | |  [ ${W}SID SENTINEL ACTIVE${G} ]  | |"
+    printf "                          | |  > DEBIAN_ARCH: ${W}%-9s${G} | |\n" "${ARCH,,}"
+    printf "                          | |  > KERNEL: ${W}%-14s${G} | |\n" "${KERNEL}"
+    printf "                          | |  > RISK_LVL: ${RISK_COL}%-11s${G}  | |\n" "${RISK_STATUS}"
+    echo -e "                          | |                           | |"
+    echo -e "                          | |      ${W}by Sergio Melas${G}      | |"
+    echo -e "                          | |___________________________| |"
+    echo -e "                          |_______________________________|"
+
+    # 4. Keyboard/Base
+    cat << 'EOF'
+                      _______________________________________
+                     /    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _    \
+                    /    |_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|    \
+                   /    |_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|    \
+                  /_____________________________________________\
+EOF
+    echo -e "${R}"
+}
+
 draw_progress() {
     local width=79
     local percent=$(( (STEP * 100) / TOTAL_STEPS ))
@@ -171,14 +226,18 @@ explain_danger() {
     echo -e "\n${C_BOLD}Detection Categories Found:${C_RESET}"
     echo -e "$hit_buffer"
 
-    echo -ne "\n${C_BOLD}TOTAL RISK SCORE:${C_RESET} "
-    if [ $risk_score -ge 75 ]; then
-        echo -e "${C_NALA_R}${risk_score} - CRITICAL (Manual Abort Recommended)${C_RESET}"
-    elif [ $risk_score -ge 45 ]; then
-        echo -e "${C_WARN}${risk_score} - HIGH (Backup Required)${C_RESET}"
+
+    echo -ne "\n ${C_BOLD}TOTAL RISK SCORE:${C_RESET} "
+
+    if [ "$risk_score" -ge 75 ]; then
+        echo -e "${C_NALA_R}${risk_score} - CRITICAL${C_RESET} (Override Highly Recommended)"
+    elif [ "$risk_score" -ge 45 ]; then
+        echo -e "${C_WARN}${risk_score} - HIGH${C_RESET}     (Review Transition Impacts)"
     else
-        echo -e "${C_PROMPT}${risk_score} - MODERATE (Standard Sid Flow)${C_RESET}"
+        echo -e "${C_PROMPT}${risk_score} - MODERATE${C_RESET} (Safe to Proceed with Caution)"
     fi
+
+    echo -e " ${C_BOLD}SENTINEL INDEX:${C_RESET}   ${C_WARN}${RAW_RISK_SCORE:-0}${C_RESET}"
 }
 
 # --- Helper: The Spinner Engine ---
@@ -208,12 +267,15 @@ stop_spinner() {
 }
 
 # --- 2. Initial Check ---
-clear
-draw_progress
-draw_header "Initial Check" "Analyzing all package managers..."
+show_logo
 echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo -e "Thanks\n"
+pause 1
+clear
+draw_progress
+draw_header "Initial Check" "Analyzing all package managers..."
+
 
 # 2.1 APT/NALA TRUTH PROBE
 start_spinner "APT/Nala: Updating Repositories"
@@ -221,15 +283,51 @@ sudo nala update >/dev/null 2>&1
 stop_spinner
 echo -e "${C_NALA_G}Done${C_RESET}"
 
-start_spinner "APT/Nala: Probing Sid Transitions"
+start_spinner "Sentinel: Analyzing Dual-Stage Risks"
+
+# --- STAGE 1: Standard Upgrade Simulation (Conservative Path) ---
+# We use --no-upgrade to prevent apt from trying to resolve complex Sid transitions
+# This should bring the count down to the "Safe 4" Nala sees.
+SIM_UPGRADE=$(apt-get upgrade -s -o APT::Get::Upgrade-Allow-New=false 2>/dev/null)
+
+# THE SUMMARY SNIPER (Targeting the summary line specifically)
+# Look for the line that has 'upgraded,' and 'not upgraded'
+UPGRADE_UPGRADES=$(echo "$SIM_UPGRADE" | grep "not upgraded" | awk '{print $1}' | tail -n1)
+UPGRADE_UPGRADES=${UPGRADE_UPGRADES:-0}
+
+# Standard removals check
+UPGRADE_REMOVALS=$(echo "$SIM_UPGRADE" | grep -Ei "Remv|Inst" | grep -c "Remv" | awk '{print $1}' | tail -n1)
+UPGRADE_REMOVALS=${UPGRADE_REMOVALS:-0}
+
+# STAGE 2: Full-Upgrade Simulation (Transition Path)
 SIM_OUT=$(apt-get dist-upgrade -s 2>/dev/null)
-APT_COUNT=$(echo "$SIM_OUT" | grep -c "^Inst")
+# REINFORCED: Force single integer to prevent "0 0" variable pollution
+APT_COUNT=$(echo "$SIM_OUT" | grep -c "^Inst" | awk '{print $1}' | tail -n1)
+APT_COUNT=${APT_COUNT:-0}
+
 stop_spinner
 
+# --- Status Reporting ---
 APT_UP=true
 if [ "$APT_COUNT" -gt 0 ]; then
     APT_UP=false
     echo -e "${C_WARN}Updates Found ($APT_COUNT)${C_RESET}"
+
+# REINFORCED: Report Safe Path with Realistic Wording
+    if [ "$UPGRADE_UPGRADES" -gt 0 ]; then
+        echo -e " ${C_PROMPT}󰒓${C_RESET} Safe Path: Up to ${C_NALA_G}${UPGRADE_UPGRADES}${C_RESET} packages available for standard upgrade."
+    else
+        echo -e " ${C_PROMPT}󰒓${C_RESET} Safe Path: ${C_NALA_R}0${C_RESET} (Full transition required for all pending updates)"
+    fi
+
+    # Telemetry: Check if removals are present in the transition
+    SIM_REMOVALS_DETECTED=$(echo "$SIM_OUT" | grep -c "^Remv" | awk '{print $1}' | tail -n1)
+    SIM_REMOVALS_DETECTED=${SIM_REMOVALS_DETECTED:-0}
+
+    if [ "$SIM_REMOVALS_DETECTED" -gt 0 ]; then
+        # Logic: If removals exist, we emphasize that the Sentinel is monitoring them
+        echo -e " ${C_NALA_R}󰆴${C_RESET} Sentinel Alert: ${C_WARN}${SIM_REMOVALS_DETECTED}${C_RESET} removals required for full transition."
+    fi
 else
     echo -e "${C_NALA_G}Up to date${C_RESET}"
 fi
@@ -263,92 +361,112 @@ if command -v snap &>/dev/null; then
     fi
 fi
 
-# --- 2.4 SID SENTINEL (Precision Regex Fix) ---
+# --- 2.3.1 Conditional Discovery Wait ---
+# Logic: If ANY manager found even one update, we MUST pause.
+# We check the actual counts: APT_COUNT, Flatpak (FP_UP), and Snap (SNAP_UP)
+
+if [ "$APT_COUNT" -gt 0 ] || [ "$FP_UP" = "false" ] || [ "$SNAP_UP" = "false" ]; then
+    echo -e "\n${C_BORDER}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
+    echo -ne "${C_WARN}󰋖 Analysis complete. Review findings above.${C_RESET}"
+
+    # Force a small sleep to ensure the UI has finished drawing before the read
+    sleep 0.5
+    wait_user
+
+    clear
+    draw_progress
+    draw_header "Sentinel Analysis" "Capturing Deep Risk Telemetry..."
+fi
+
+# --- 2.4 SID SENTINEL DATA CAPTURE & FLAGS ---
 MAX_DELETIONS=5
 MAX_KEPT_BACK=50
 
-# 1. Capture the REMOVED block
-REMOVAL_LIST_CLEAN=$(echo "$SIM_OUT" | awk '/to be REMOVED:/,/installed:/' | grep -vE "REMOVED|installed|following" | tr -s ' ' '\n' | sed 's/[():]//g' | grep -E '^[a-z0-0][a-z0-9.+-]+$' | sort -u)
+# 1. Capture via Explicit Line Actions (Bypasses block layout variations)
+# 'Remv' identifies packages slated for complete uninstallation/replacement
+REMOVAL_LIST_CLEAN=$(echo "$SIM_OUT" | grep "^Remv " | awk '{print $2}' | sort -u)
 
-# 2. Capture the AUTOREMOVE block
-AUTOREM_LIST=$(echo "$SIM_OUT" | awk '/no longer required:/,/Use .sudo apt autoremove./' | grep -vE "required|autoremove|following" | tr -s ' ' '\n' | sed 's/[():]//g' | grep -E '^[a-z0-0][a-z0-9.+-]+$' | sort -u)
+# 'Inst' lines that contain an execution flag at the end inside brackets e.g. "Inst pkg [to remove]"
+# This accurately snipes packages marked for removal by the autoremove logic during transition
+AUTOREM_LIST=$(echo "$SIM_OUT" | grep "^Inst " | grep -E "\[.*remove.*\]" | awk '{print $2}' | sort -u)
 
-# 3. Combine and filter out version numbers (anything starting with a bracket or number)
-FULL_REMOVAL_LIST=$(echo -e "${REMOVAL_LIST_CLEAN}\n${AUTOREM_LIST}" | grep -vE "^\[|^[0-9]" | sed '/^$/d' | sort -u)
-REMOVAL_COUNT=$(echo "$FULL_REMOVAL_LIST" | grep -v "^$" | wc -l)
+# 2. Calculation with Fallbacks (Pure cryptographic stream joining)
+FULL_REMOVAL_LIST=$(echo -e "${REMOVAL_LIST_CLEAN}\n${AUTOREM_LIST}" | sed '/^$/d' | sort -u)
 
-# 4. Critical hits (Core Desktop & Input components)
+
+REMOVAL_COUNT=$(echo "$FULL_REMOVAL_LIST" | grep -v "^$" | wc -l || echo 0)
+REMOVAL_COUNT=${REMOVAL_COUNT:-0}
+
+# 3. Critical hits & Fragmentation
 CRITICAL_HIT=$(echo "$FULL_REMOVAL_LIST" | grep -Ei "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus")
+KEPT_BACK_COUNT=$(echo "$SIM_OUT" | grep "not upgraded" | grep -oEi "[0-9]+ not upgraded" | awk '{print $1}' || echo 0)
+KEPT_BACK_COUNT=${KEPT_BACK_COUNT:-0}
 
-# 5. Fragmentation Check
-KEPT_BACK_COUNT=$(echo "$SIM_OUT" | grep "not upgraded" | grep -oEi "[0-9]+ not upgraded" | awk '{print $1}')
-[ -z "$KEPT_BACK_COUNT" ] && KEPT_BACK_COUNT=0
+# 4. DUAL-STAGE RISK FLAGS (Now fully populated)
+UPGRADE_DANGER=false; [ "${UPGRADE_REMOVALS:-0}" -gt 0 ] && UPGRADE_DANGER=true
 
-APT_DANGER=false
+FULL_DANGER=false
 if [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ] || [ -n "$CRITICAL_HIT" ] || [ "$KEPT_BACK_COUNT" -gt "$MAX_KEPT_BACK" ]; then
-    APT_DANGER=true
+    FULL_DANGER=true
 fi
 
-# --- 3. Update Branch ---
-# 3.0 EMERGENCY BRAKE
-# --- 3. Update Branch ---
-if [ "$APT_DANGER" = "true" ]; then
-        clear
-        draw_progress
-        draw_header "!!! DANGER DETECTED !!!" "Potential System Destruction Found"
+# 6. Optional: Telemetry Capture for the Risk Translator
+# Calculates a raw danger score for internal weighting
+RAW_RISK_SCORE=0
+[ "$REMOVAL_COUNT" -gt 0 ] && ((RAW_RISK_SCORE += REMOVAL_COUNT * 5))
+[ -n "$CRITICAL_HIT" ] && ((RAW_RISK_SCORE += 50))
+[ "$KEPT_BACK_COUNT" -gt 20 ] && ((RAW_RISK_SCORE += 10))
 
-        # Call the risk translator with the COMPREHENSIVE list
-        explain_danger "$FULL_REMOVAL_LIST"
+# --- 3.0 INTELLIGENT EMERGENCY BRAKE (SPLIT-PATH) ---
 
-        # --- MASKING LOGIC: Only show list if there is actually something to remove ---
-        if [ "$REMOVAL_COUNT" -gt 0 ]; then
-            echo -ne "\n${C_NALA_R}${C_BOLD}Technical Removal List (Summary):${C_RESET}\n"
-            headshow=8
-            echo "$FULL_REMOVAL_LIST" | head -n $headshow | sed 's/^/  - /'
+# FAIL-SAFE: Abort if standard upgrade is broken
+if [ "$UPGRADE_DANGER" = "true" ]; then
+    clear
+    draw_progress
+    draw_header "!!! CRITICAL BASE FAILURE !!!" "Standard upgrade is attempting removals."
+    echo -e "${C_NALA_R}FATAL: Standard 'apt upgrade' is not safe. Aborting.${C_RESET}"
+    exit 1
+fi
 
-            if [ "$REMOVAL_COUNT" -gt $headshow ]; then
-                echo -e "  ${C_BORDER}... and $((REMOVAL_COUNT - $headshow)) more packages.${C_RESET}"
-            fi
-        fi
+# TRANSITION TRAP: Offer to Mask/Skip the Full-Upgrade
+if [ "$FULL_DANGER" = "true" ]; then
+    clear
+    draw_progress
+    draw_header "!!! DANGER DETECTED IN FULL TRANSITION!!!" "Potential System Destruction Found"
+    explain_danger "$FULL_REMOVAL_LIST"
 
-        # --- Dynamic Trigger Logic ---
-        echo -ne "\n${C_BOLD}Trigger: ${C_RESET}"
-        if [ -n "$CRITICAL_HIT" ]; then
-            echo -e "${C_NALA_R}Critical system component hit!${C_RESET}"
-        elif [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ]; then
-            echo -e "${C_WARN}Mass removal ($REMOVAL_COUNT packages) exceeds limit ($MAX_DELETIONS).${C_RESET}"
-        elif [ "$KEPT_BACK_COUNT" -gt "$MAX_KEPT_BACK" ]; then
-            echo -e "${C_WARN}High Fragmentation detected ($KEPT_BACK_COUNT packages held back).${C_RESET}"
-        else
-            echo "Security Audit triggered."
-        fi
+    echo -e " ${C_BOLD}Sentinel Risk Index:${C_RESET} ${C_WARN}${RAW_RISK_SCORE}${C_RESET}"
 
-        echo -ne "\n${C_PROMPT}Proceed anyway? (Check 'Analysis of Risk' above!) [y/N]: ${C_RESET}"
-        read -r danger_resp
-        if [[ ! "$danger_resp" =~ ^[Yy]$ ]]; then
-            # 1. Update State
-            APT_UP=true
-            APT_SKIPPED=true
-            ((STEP+=2)) # Skip the APT execution steps in the progress bar
-
-            # 2. Visual Pivot
-            clear
-            draw_progress
-            draw_header "APT Upgrade Aborted" "Bypassing high-risk changes safely."
-
-            echo -e "\n ${C_WARN}󰜺${C_RESET} ${C_BOLD}Status:${C_RESET} APT/Nala operations cancelled by user."
-            echo -e " ${C_PROMPT}󰁯${C_RESET} ${C_BOLD}Next:${C_RESET} Moving to Flatpak and Snap managers..."
-
-            # 3. Pause for the user to see the confirmation
-            wait_user
-            clear
-        fi
+    if [ "$REMOVAL_COUNT" -gt 0 ]; then
+        echo -ne "\n${C_NALA_R}${C_BOLD}Technical Removal List (Summary):${C_RESET}\n"
+        headshow=8
+        echo "$FULL_REMOVAL_LIST" | head -n $headshow | sed 's/^/  - /'
+        [ "$REMOVAL_COUNT" -gt $headshow ] && echo -e "  ${C_BORDER}... and $((REMOVAL_COUNT - $headshow)) more.${C_RESET}"
     fi
 
-# 3.0 Proceed
-# Logic: Only show 'Already up to date' if we didn't just manually abort a danger
+    echo -ne "\n${C_BOLD}Trigger: ${C_RESET}"
+    [ -n "$CRITICAL_HIT" ] && echo -e "${C_NALA_R}Critical component hit!${C_RESET}" || echo -e "${C_WARN}Threshold exceeded.${C_RESET}"
 
-if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ] && [ "$APT_SKIPPED" != "true" ]; then
+    # THE MASK CHOICE
+    echo -ne "\n${C_PROMPT}Standard updates are safe. Override full Upgrade ? [Y/n]: ${C_RESET}"
+    read -r danger_resp
+    if [[ ! "$danger_resp" =~ ^[Nn]$ ]]; then
+        SKIP_FULL_UPGRADE=true
+        clear
+        draw_progress
+        draw_header "Sentinel Shield Engaged" "Safe updates enabled, dongerous transitions overrided."
+        echo -e "\n ${C_WARN}󰜺${C_RESET} High-risk 'dist-upgrade' transitions will be skipped."
+        wait_user
+        clear
+    else
+        SKIP_FULL_UPGRADE=false
+        echo -e "\n ${C_NALA_R}󰜺${C_RESET} Risk accepted. Proceeding with full risk."
+    fi
+fi
+
+# 3.0 Proceed logic
+# We check if updates were actually found in Section 2.1
+if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
     ((STEP+=6))
     draw_header "Status" "System is already fully up to date."
     wait_user
@@ -378,14 +496,14 @@ else
     fi
     ((STEP++))
 
-    # 3.2 Sid Full-Upgrade
-    clear
-    draw_progress
-    draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
-    if [ "$APT_UP" = "false" ]; then
+    # 3.2 Sid Full-Upgrade (The Intelligent Path)
+    if [ "$SKIP_FULL_UPGRADE" != "true" ] && [ "$APT_UP" = "false" ]; then
+        clear
+        draw_progress
+        draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
         echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
         read -r full_resp
-        if [ "$full_resp" = "y" ] || [ "$full_resp" = "Y" ]; then
+        if [[ "$full_resp" =~ ^[Yy]$ ]]; then
             sudo nala full-upgrade --autoremove --purge --no-update
         fi
     fi
