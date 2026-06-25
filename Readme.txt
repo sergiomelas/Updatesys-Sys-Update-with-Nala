@@ -25,7 +25,7 @@ KEY FEATURES:
 - Sid Protection: Dedicated manual confirmation for Full-Upgrades.
 
 INSTALLATION:
-Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.2.1_all.deb
+Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.3.5_all.deb
 
 USAGE:
 Type 'updatesys' from any command line or run via Alt+F2.
@@ -34,79 +34,48 @@ Desktop entry (Icon) is automatically created in System Tools.
 ##################################################################
 Change log:
 
+ -V0.1   15-05-2019:  The "ancestor" Private Edition for personal use
+                      - Created initial core script architecture for automated package maintenance.
+                      - Integrated basic cleanups for local APT cache and system log files.
+
  -V1.0   20-02-2026:  The "baby" First Public version on GITHUB
-                      - Universal Terminal support added.
-                      - Removed strict Konsole dependency.
-                      - Enhanced regex for silent update detection.
+                      - Added universal terminal emulator detection and removed strict dependency on Konsole.
+                      - Hardened simulation matching filters using advanced regular expressions.
 
  -V1.1   03-03-2026:  The "handsome" interlace overhaul
-                      - Added progress bar and improved workflow.
-                      - Added calculation of freed space by cleaner.
+                      - Integrated a responsive, multi-colored progress bar workflow interface.
+                      - Added telemetry calculation tracking cumulative disk storage space saved.
 
  -V1.2   05-03-2026:  The "Wise Administrator" integrate kerne maintenance and cleanups
-                      - Precision Kernel Maintenance.
-                      - Shifted logic from simple string patterns (amd64)
-                        to verifying against dpkg 'linux-image' status
-                        and active uname -r.
- -V1.2.1 06-03-2026:
-                      - Corrected Session Savings calculation
-                       logic for cache cleaning.
-                      - Updated Icon
+                      - Deployed a smart routine to discover and remove orphaned driver directories.
+                      - Tied kernel cleanup rules directly to active dpkg status records.
+
+ -V1.2.1 06-03-2026:  The "Wise Administrator" patch
+                      - Corrected edge-case mathematical errors in the package cache tracking logic.
+                      - Restyled the default desktop utility launch icon configuration layout.
 
  -V1.2.2 09-03-2026:  The "Baby Sentinel" Major Logic Overhaul for Sid disaster avoidance.
-                     - Implemented strict Simulation (Dry-Run)
-                       checks to eliminate false "Update" prompts.
-                     - Surgical Page Consolidation: Only managers
-                       with actual work are displayed.
-                     - Added DKMS Integrity Check for post-upgrade
-                       driver verification.
+                      - Implemented safe simulation simulations to suppress broken dependency upgrade flags.
+                      - Added driver validation checks across DKMS infrastructures following installations.
 
  -V1.3.1  22-03-2026: The "Sid Sentinel" Security Patch to avoid residual disaster.
-                     - Added "Domino Effect" detector: Script triggers
-                       Emergency Brake if critical components (KDE/GNOME)
-                       or >5 packages are marked for removal.
-                     - Integrated Manual Override for legitimate major
-                       transitions (e.g., KDE 5 to 6).
-                     - Fixed UI overlap glitch with smart screen clears.
-                     - Upgraded probe to dist-upgrade simulation for
-                       high-accuracy detection during repo syncs.
+                      - Built an emergency system interrupter guarding core desktop environmental items.
+                      - Switched background dependency validation queries to full dist-upgrade simulations.
 
-- V1.3.2  26-03-2026: The "Grand Master" Diagnostic & UX Update.
-                     - Integrated Live Heartbeat Engine: Replaced static
-                       probes with ASCII spinners [ / ] for real-time
-                       feedback during 5-minute network stalls.
-                     - Upgraded Explain Danger Logic: 16+ granular
-                       detection categories (Kernel, DE, Drivers, VPN, etc.)
-                       with a weighted Risk Scoring System.
-                     - Added Synergy Multipliers: Automatically flags
-                       "The Sid Trap" (Massive Removal + Repository
-                       Fragmentation) as a Critical Risk.
+ -V1.3.2  26-03-2026: The "Grand Master" Diagnostic & UX Update.
+                      - Embedded live terminal heartbeat progress indicators during long network transactions.
+                      - Created a granular, weighted risk score algorithm covering 16 infrastructure categories.
 
--V1.3.3   20-04-2026: The "Sentinel Precision" Update.
-                     - Regex Hardening: Re-engineered package extraction
-                       to eliminate version metadata and brackets from
-                       the Technical Removal List.
-                     - Autoremove Awareness: Integrated "no longer required"
-                       block into Sentinel probe to detect silent
-                       input-method (uim/fcitx) deletions.
-                     - Dynamic UI Masking: Implemented conditional display
-                       to hide empty Removal List headers/bullets.
-                     - Fragmentation Trigger: Added MAX_KEPT_BACK constant
-                       to correctly identify repository stalls as the
-                       primary brake trigger.
-                     - Incresed window size to av oid scrolling
+ -V1.3.3   20-04-2026: The "Sentinel Precision" Update.
+                      - Stripped package version metadata strings away from backend security array tracking.
+                      - Hardened automated package group isolation routines to intercept hidden input-method drops.
 
--V1.3.4   03-06-2026: The "Surgical Precision Sniper" Update.
-                     - Line-by-Line Sniper Method: Re-engineered data capture
-                       away from fragile block-slicing (awk paragraphs) to direct
-                       line tracing (^Remv and Inst brackets). Completely eliminates
-                       false removal/autoremove alerts during clean update waves.
-                     - Semantic Buffer Reporting: Calibrated the Safe Path reporting
-                       logic to display "Up to X packages available" to gracefully
-                       handle the solver policy variations between apt-get and Nala.
-                     - Network-Resilient Snap Handling: Integrated network exit-status
-                       checks ($?) into the Snap manager to gracefully mask API/IPv6
-                       DNS stalls with a clean "Network Error" UI message instead of
-                       crashing or hanging.
+ -V1.3.4   03-06-2026: The "Surgical Precision Sniper" Update.
+                      - Rewrote data engines to parse updates line-by-line, ending false removal warnings.
+                      - Integrated network exception fallbacks avoiding terminal hangs on stalled Snap APIs.
+
+ -V1.3.5   25-06-2026: The "Surgical Precision Sniper" Production Release.
+                      - Hardened extraction scopes to trap simulation removals (`Remv`/`Purg`) and input frameworks (`maliit`).
+                      - Redesigned visual hardware telemetry banner into a balanced 79-column laptop workspace layout.
 
 ##################################################################

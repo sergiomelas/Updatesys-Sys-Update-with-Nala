@@ -36,10 +36,10 @@ show_logo() {
     if [ "$UPGRADE_DANGER" = "true" ]; then RISK_STATUS="CRITICAL"; RISK_COL='\e[91m'; fi
 
     # 1. FIGlet Style Header
-    echo -e "${G}${B}"
+    echo -e "${W}${B}"
     cat << 'EOF'
-                _   _ ____  ____    _  _____ _____ _______   ______
-               | | | |  _ \|  _ \  / \|_   _| ____/ ___/\ \ / / ___|
+                _   _ ____  ____    _  _____ ____  _______   ______
+               | | | |  _ \|  _ \  / \|_   _| ___|/ ___/\ \ / / ___|
                | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \
                | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |
                 \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/
@@ -47,28 +47,36 @@ show_logo() {
 EOF
 
     # 2. Sub-Header
-    echo -e "          ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"
+    echo -e "            ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"
 
     # 3. IBM Data Box (Internal width is 27 chars)
     echo -e "${G}"
-    echo -e "                           _______________________________"
-    echo -e "                          |  ___________________________  |"
-    echo -e "                          | |  [ ${W}SID SENTINEL ACTIVE${G} ]  | |"
-    printf "                          | |  > DEBIAN_ARCH: ${W}%-9s${G} | |\n" "${ARCH,,}"
-    printf "                          | |  > KERNEL: ${W}%-14s${G} | |\n" "${KERNEL}"
-    printf "                          | |  > RISK_LVL: ${RISK_COL}%-11s${G}  | |\n" "${RISK_STATUS}"
-    echo -e "                          | |                           | |"
-    echo -e "                          | |      ${W}by Sergio Melas${G}      | |"
-    echo -e "                          | |___________________________| |"
-    echo -e "                          |_______________________________|"
+    echo -e "                     _________________________________________"
+    echo -e "                    |  _____________________________________  |"
+    echo -e "                    | |                                     | |"
+    echo -e "                    | |                                     | |"
+    echo -e "                    | |      [ ${W}SID SENTINEL ACTIVE${G} ]        | |"
+    printf "                    | |      > DEBIAN_ARCH: ${W}%-9s${G}       | |\n" "${ARCH,,}"
+    printf "                    | |      > KERNEL: ${W}%-14s${G}       | |\n" "${KERNEL}"
+    printf "                    | |      > RISK_LVL: ${RISK_COL}%-11s${G}        | |\n" "${RISK_STATUS}"
+    echo -e "                    | |                                     | |"
+    echo -e "                    | |         ${W}by Sergio Melas${G}             | |"
+    echo -e "                    | |                                     | |"
+    echo -e "                    | |                                     | |"
+    echo -e "                    | |_____________________________________| |"
+    echo -e "                    |_________________________________________|"
 
     # 4. Keyboard/Base
     cat << 'EOF'
-                      _______________________________________
-                     /    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _    \
-                    /    |_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|    \
-                   /    |_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|    \
-                  /_____________________________________________\
+                    /_________________________________________\
+                   /    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _    \
+                  /    |_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|    \
+                 /    _|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_    \
+                /    |SHIFT|_|_|_|_|_|_|_|_|_|_|_|_|_|_|ENTER|    \
+               /    |CTRL|ALT|_|_|________________|_|_|_|_|<|v|>|  \
+              /_____________________________________________________\
+              |_____________________________________________________|
+
 EOF
     echo -e "${R}"
 }
@@ -286,17 +294,14 @@ echo -e "${C_NALA_G}Done${C_RESET}"
 start_spinner "Sentinel: Analyzing Dual-Stage Risks"
 
 # --- STAGE 1: Standard Upgrade Simulation (Conservative Path) ---
-# We use --no-upgrade to prevent apt from trying to resolve complex Sid transitions
-# This should bring the count down to the "Safe 4" Nala sees.
 SIM_UPGRADE=$(apt-get upgrade -s -o APT::Get::Upgrade-Allow-New=false 2>/dev/null)
 
-# THE SUMMARY SNIPER (Targeting the summary line specifically)
-# Look for the line that has 'upgraded,' and 'not upgraded'
-UPGRADE_UPGRADES=$(echo "$SIM_UPGRADE" | grep "not upgraded" | awk '{print $1}' | tail -n1)
+# THE SUMMARY SNIPER (Targeting the exact upgrade count from the summary line)
+UPGRADE_UPGRADES=$(echo "$SIM_UPGRADE" | grep -Ei "upgraded," | sed -E 's/([0-9]+) upgraded.*/\1/' | awk '{print $1}' | tail -n1)
 UPGRADE_UPGRADES=${UPGRADE_UPGRADES:-0}
 
 # Standard removals check
-UPGRADE_REMOVALS=$(echo "$SIM_UPGRADE" | grep -Ei "Remv|Inst" | grep -c "Remv" | awk '{print $1}' | tail -n1)
+UPGRADE_REMOVALS=$(echo "$SIM_UPGRADE" | grep -Ei "^Remv " | wc -l)
 UPGRADE_REMOVALS=${UPGRADE_REMOVALS:-0}
 
 # STAGE 2: Full-Upgrade Simulation (Transition Path)
@@ -382,9 +387,9 @@ fi
 MAX_DELETIONS=5
 MAX_KEPT_BACK=50
 
-# 1. Capture via Explicit Line Actions (Bypasses block layout variations)
-# 'Remv' identifies packages slated for complete uninstallation/replacement
-REMOVAL_LIST_CLEAN=$(echo "$SIM_OUT" | grep "^Remv " | awk '{print $2}' | sort -u)
+# 1. Capture via Native APT Simulation Lines (Surgical Snipe)
+# Catches native APT simulation lines for removals (Remv) and purges (Purg)
+REMOVAL_LIST_CLEAN=$(echo "$SIM_OUT" | grep -E "^(Remv|Purg) " | awk '{print $2}' | sort -u)
 
 # 'Inst' lines that contain an execution flag at the end inside brackets e.g. "Inst pkg [to remove]"
 # This accurately snipes packages marked for removal by the autoremove logic during transition
@@ -393,12 +398,11 @@ AUTOREM_LIST=$(echo "$SIM_OUT" | grep "^Inst " | grep -E "\[.*remove.*\]" | awk 
 # 2. Calculation with Fallbacks (Pure cryptographic stream joining)
 FULL_REMOVAL_LIST=$(echo -e "${REMOVAL_LIST_CLEAN}\n${AUTOREM_LIST}" | sed '/^$/d' | sort -u)
 
-
 REMOVAL_COUNT=$(echo "$FULL_REMOVAL_LIST" | grep -v "^$" | wc -l || echo 0)
 REMOVAL_COUNT=${REMOVAL_COUNT:-0}
 
 # 3. Critical hits & Fragmentation
-CRITICAL_HIT=$(echo "$FULL_REMOVAL_LIST" | grep -Ei "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus")
+CRITICAL_HIT=$(echo "$FULL_REMOVAL_LIST" | grep -Ei "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus|maliit")
 KEPT_BACK_COUNT=$(echo "$SIM_OUT" | grep "not upgraded" | grep -oEi "[0-9]+ not upgraded" | awk '{print $1}' || echo 0)
 KEPT_BACK_COUNT=${KEPT_BACK_COUNT:-0}
 

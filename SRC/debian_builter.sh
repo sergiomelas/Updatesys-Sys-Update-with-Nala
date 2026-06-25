@@ -4,10 +4,15 @@
 
 # --- Configuration ---
 PKG_NAME="updatesys"
-PKG_VER="1.3.4"
+PKG_VER="1.3.5"
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PAYLOAD_DIR="${BASE_DIR}/Payload"
 BUILD_DIR="${BASE_DIR}/build_workspace"
+
+# Identity Configuration
+export DEBFULLNAME="Sergio Melas"
+export DEBEMAIL="sergiomelas@gmail.com"
+MAINTAINER="${DEBFULLNAME} <${DEBEMAIL}>"
 
 echo " "
 echo " ##################################################################"
@@ -64,7 +69,7 @@ Version: $PKG_VER
 Section: utils
 Priority: optional
 Architecture: all
-Maintainer: Sergio Melas <sergiomelas@gmail.com>
+Maintainer: ${MAINTAINER}
 Depends: nala, fastfetch, flatpak, snapd, dkms, bash, coreutils
 Recommends: konsole | gnome-terminal | xfce4-terminal
 Description: Pretty System Update
