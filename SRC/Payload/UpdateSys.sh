@@ -17,7 +17,6 @@ C_PROMPT='\e[92m'; C_NALA_G='\e[32m'; C_NALA_R='\e[31m'; C_RESET='\e[0m'
 STEP=1
 TOTAL_STEPS=15
 TOTAL_FREED=0
-
 show_logo() {
     clear
     # --- Local Color Definitions ---
@@ -29,11 +28,6 @@ show_logo() {
     # --- Dynamic Telemetry ---
     local ARCH=$(uname -m)
     local KERNEL=$(uname -r | cut -d'-' -f1)
-    local RISK_STATUS="MONITORING"
-    local RISK_COL=$G
-
-    if [ "$FULL_DANGER" = "true" ]; then RISK_STATUS="CAUTION"; RISK_COL='\e[93m'; fi
-    if [ "$UPGRADE_DANGER" = "true" ]; then RISK_STATUS="CRITICAL"; RISK_COL='\e[91m'; fi
 
     # 1. FIGlet Style Header
     echo -e "${W}${B}"
@@ -58,7 +52,7 @@ EOF
     echo -e "                    | |      [ ${W}SID SENTINEL ACTIVE${G} ]        | |"
     printf "                    | |      > DEBIAN_ARCH: ${W}%-9s${G}       | |\n" "${ARCH,,}"
     printf "                    | |      > KERNEL: ${W}%-14s${G}       | |\n" "${KERNEL}"
-    printf "                    | |      > RISK_LVL: ${RISK_COL}%-11s${G}        | |\n" "${RISK_STATUS}"
+    printf "                    | |      > RISK_LVL: ${G}%-11s${G}        | |\n" "MONITORING"
     echo -e "                    | |                                     | |"
     echo -e "                    | |         ${W}by Sergio Melas${G}             | |"
     echo -e "                    | |                                     | |"
@@ -83,13 +77,23 @@ EOF
 
 draw_progress() {
     local width=79
-    local percent=$(( (STEP * 100) / TOTAL_STEPS ))
-    local filled=$(( (STEP * width) / TOTAL_STEPS ))
+
+    # Fail-safe: Cap the current step to prevent layout overflow if STEP exceeds TOTAL_STEPS
+    local current_step=$STEP
+    [ "$current_step" -gt "$TOTAL_STEPS" ] && current_step=$TOTAL_STEPS
+
+    local percent=$(( (current_step * 100) / TOTAL_STEPS ))
+    local filled=$(( (current_step * width) / TOTAL_STEPS ))
     local empty=$(( width - filled ))
+
+    # Draw the completed progress bar segments (Green)
     echo -ne "${C_NALA_G}"
-    for i in $(seq 1 $filled); do echo -n "━"; done
+    for ((i=0; i<filled; i++)); do echo -n "━"; done
+
+    # Draw the remaining progress bar segments (Red)
     echo -ne "${C_NALA_R}"
-    for i in $(seq 1 $empty); do echo -n "━"; done
+    for ((i=0; i<empty; i++)); do echo -n "━"; done
+
     echo -e "${C_RESET}\n Progress: ${percent}%"
 }
 
@@ -97,12 +101,15 @@ draw_header() {
     local title="$1"
     local tip="$2"
     local width=79
+
+    # Correct top bar length math to match the framework columns perfectly
     local title_len=${#title}
-    local bar_len=$((width - title_len - 5))
+    local bar_len=$((width - title_len - 4))
     if [ "$bar_len" -lt 1 ]; then bar_len=1; fi
 
-    echo -ne "${C_BORDER}┏━${C_TEXT}${C_BOLD} ${title} ${C_RESET}${C_BORDER}$(printf '━%.0s' $(seq 1 $bar_len))┓\n"
-    echo -ne "┃${C_RESET}  ${tip}$(printf ' %.0s' $(seq 1 $((width - ${#tip} - 4))))${C_BORDER}┃\n"
+    echo -ne "${C_BORDER}┏━${C_TEXT}${C_BOLD}${title} ${C_RESET}${C_BORDER}$(printf '━%.0s' $(seq 1 $bar_len))┓\n"
+    # Use standard printf padding to enforce exactly 75 characters for the inner text space
+    printf "${C_BORDER}┃${C_RESET}  %-75s${C_BORDER}┃\n" "$tip"
     echo -e "┗$(printf '━%.0s' $(seq 1 $((width - 2))))┛${C_RESET}"
 }
 
@@ -217,8 +224,8 @@ explain_danger() {
         add_hit "${C_NALA_R}󰔶 CRITICAL SYNERGY:${C_RESET} Removal during massive stall. Reinstall will fail." 40
     fi
 
-    # Detect Major Version Transitions (Qt/Frameworks)
-    local V_CHANGE=$(echo "$SIM_OUT" | grep -Ei "remv|inst" | grep -oEi "lib(kf[5-9]|qt[5-9]|gnome[0-9]|gtk[3-5]|glib[0-9])" | sort -u | wc -l)
+    # FIXED: Query the localized functional list argument instead of an outer global variable
+    local V_CHANGE=$(echo "$list" | grep -Ei "remv|inst" | grep -oEi "lib(kf[5-9]|qt[5-9]|gnome[0-9]|gtk[3-5]|glib[0-9])" | sort -u | wc -l)
     if [ "$V_CHANGE" -gt 1 ]; then
         add_hit "${C_PROMPT}󰔶 Transition:${C_RESET} Major library version jump detected (e.g. Qt5->6)." 15
     fi
@@ -245,7 +252,7 @@ explain_danger() {
         echo -e "${C_PROMPT}${risk_score} - MODERATE${C_RESET} (Safe to Proceed with Caution)"
     fi
 
-    echo -e " ${C_BOLD}SENTINEL INDEX:${C_RESET}   ${C_WARN}${RAW_RISK_SCORE:-0}${C_RESET}"
+    echo -e " ${C_BOLD}SENTINEL INDEX:${C_RESET}   ${C_WARN}${risk_score}${C_RESET}"
 }
 
 # --- Helper: The Spinner Engine ---
@@ -271,7 +278,7 @@ start_spinner() {
 stop_spinner() {
     kill $SPIN_PID >/dev/null 2>&1
     wait $SPIN_PID 2>/dev/null
-    echo -ne "\b\b\b\b\b\b" # Clean up the spinner characters
+    echo -ne "      \b\b\b\b\b\b"
 }
 
 # --- 2. Initial Check ---
@@ -279,7 +286,7 @@ show_logo
 echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo -e "Thanks\n"
-pause 1
+sleep 1
 clear
 draw_progress
 draw_header "Initial Check" "Analyzing all package managers..."
@@ -306,8 +313,9 @@ UPGRADE_REMOVALS=${UPGRADE_REMOVALS:-0}
 
 # STAGE 2: Full-Upgrade Simulation (Transition Path)
 SIM_OUT=$(apt-get dist-upgrade -s 2>/dev/null)
+# FIXED: Added the explicit trailing space to ensure we only count real package installation lines
 # REINFORCED: Force single integer to prevent "0 0" variable pollution
-APT_COUNT=$(echo "$SIM_OUT" | grep -c "^Inst" | awk '{print $1}' | tail -n1)
+APT_COUNT=$(echo "$SIM_OUT" | grep -c "^Inst " | awk '{print $1}' | tail -n1)
 APT_COUNT=${APT_COUNT:-0}
 
 stop_spinner
@@ -337,16 +345,22 @@ else
     echo -e "${C_NALA_G}Up to date${C_RESET}"
 fi
 
-# 2.2 FLATPAK
+# 2.2 FLATPAK (Fixed Execution Flow)
 if command -v flatpak &>/dev/null; then
     start_spinner "Flatpak:  Checking Runtimes"
-    FP_UP=true
-    if echo "n" | sudo flatpak update 2>&1 | grep -iqE "ID|Updating|Installing"; then
+
+    # 1. Capture the evaluation output into a variable safely
+    FP_CHECK=$(echo "n" | sudo flatpak update 2>&1)
+
+    # 2. Kill the spinner engine immediately while the cursor is controlled
+    stop_spinner
+
+    # 3. Perform string pattern matching on the isolated variable
+    if echo "$FP_CHECK" | grep -iqE "ID|Updating|Installing"; then
         FP_UP=false
-        stop_spinner
         echo -e "${C_WARN}Updates Found${C_RESET}"
     else
-        stop_spinner
+        FP_UP=true
         echo -e "${C_NALA_G}Up to date${C_RESET}"
     fi
 fi
@@ -401,16 +415,21 @@ FULL_REMOVAL_LIST=$(echo -e "${REMOVAL_LIST_CLEAN}\n${AUTOREM_LIST}" | sed '/^$/
 REMOVAL_COUNT=$(echo "$FULL_REMOVAL_LIST" | grep -v "^$" | wc -l || echo 0)
 REMOVAL_COUNT=${REMOVAL_COUNT:-0}
 
-# 3. Critical hits & Fragmentation
-CRITICAL_HIT=$(echo "$FULL_REMOVAL_LIST" | grep -Ei "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus|maliit")
+# 3. Critical hits & Fragmentation (Fixed Logic Check)
+if echo "$FULL_REMOVAL_LIST" | grep -qEi "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus|maliit"; then
+    CRITICAL_HIT="true"
+else
+    CRITICAL_HIT="false"
+fi
+
 KEPT_BACK_COUNT=$(echo "$SIM_OUT" | grep "not upgraded" | grep -oEi "[0-9]+ not upgraded" | awk '{print $1}' || echo 0)
 KEPT_BACK_COUNT=${KEPT_BACK_COUNT:-0}
 
-# 4. DUAL-STAGE RISK FLAGS (Now fully populated)
+# 4. DUAL-STAGE RISK FLAGS (Now fully robust)
 UPGRADE_DANGER=false; [ "${UPGRADE_REMOVALS:-0}" -gt 0 ] && UPGRADE_DANGER=true
 
 FULL_DANGER=false
-if [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ] || [ -n "$CRITICAL_HIT" ] || [ "$KEPT_BACK_COUNT" -gt "$MAX_KEPT_BACK" ]; then
+if [ "$REMOVAL_COUNT" -gt "$MAX_DELETIONS" ] || [ "$CRITICAL_HIT" = "true" ] || [ "$KEPT_BACK_COUNT" -gt "$MAX_KEPT_BACK" ]; then
     FULL_DANGER=true
 fi
 
@@ -418,7 +437,7 @@ fi
 # Calculates a raw danger score for internal weighting
 RAW_RISK_SCORE=0
 [ "$REMOVAL_COUNT" -gt 0 ] && ((RAW_RISK_SCORE += REMOVAL_COUNT * 5))
-[ -n "$CRITICAL_HIT" ] && ((RAW_RISK_SCORE += 50))
+[ "$CRITICAL_HIT" = "true" ] && ((RAW_RISK_SCORE += 50))
 [ "$KEPT_BACK_COUNT" -gt 20 ] && ((RAW_RISK_SCORE += 10))
 
 # --- 3.0 INTELLIGENT EMERGENCY BRAKE (SPLIT-PATH) ---
@@ -449,7 +468,7 @@ if [ "$FULL_DANGER" = "true" ]; then
     fi
 
     echo -ne "\n${C_BOLD}Trigger: ${C_RESET}"
-    [ -n "$CRITICAL_HIT" ] && echo -e "${C_NALA_R}Critical component hit!${C_RESET}" || echo -e "${C_WARN}Threshold exceeded.${C_RESET}"
+    [ "$CRITICAL_HIT" = "true" ] && echo -e "${C_NALA_R}Critical component hit!${C_RESET}" || echo -e "${C_WARN}Threshold exceeded.${C_RESET}"
 
     # THE MASK CHOICE
     echo -ne "\n${C_PROMPT}Standard updates are safe. Override full Upgrade ? [Y/n]: ${C_RESET}"
@@ -469,17 +488,15 @@ if [ "$FULL_DANGER" = "true" ]; then
 fi
 
 # 3.0 Proceed logic
-# We check if updates were actually found in Section 2.1
 if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
     ((STEP+=6))
     draw_header "Status" "System is already fully up to date."
     wait_user
 else
-    # NEW LOGIC: If we are here but EVERYTHING is now 'true', it means we skipped APT
-    # and Flatpak/Snap have nothing to do.
-    if [ "$APT_UP" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
+    # FIXED: Check if the user chose to skip high-risk full-upgrade transitions
+    if [ "$SKIP_FULL_UPGRADE" = "true" ] && [ "$FP_UP" = "true" ] && [ "$SNAP_UP" = "true" ]; then
         draw_header "Status" "APT Upgrade Skipped. No other updates pending."
-        ((STEP+=4)) # Jump forward so we don't 'wait_user' twice
+        ((STEP+=4))
         wait_user
     else
         # 3.1 Standard Upgrade - Show only what is actually pending
@@ -491,48 +508,48 @@ else
 
         wait_user
         clear
-    draw_progress
-    draw_header "Update Pending" "Performing standard package upgrade"
+        draw_progress
+        draw_header "Update Pending" "Performing standard package upgrade"
 
 
-    if [ "$APT_UP" = "false" ]; then
-        sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
-    fi
-    ((STEP++))
+        if [ "$APT_UP" = "false" ]; then
+            sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
+        fi
+        ((STEP++))
 
-    # 3.2 Sid Full-Upgrade (The Intelligent Path)
-    if [ "$SKIP_FULL_UPGRADE" != "true" ] && [ "$APT_UP" = "false" ]; then
+        # 3.2 Sid Full-Upgrade (The Intelligent Path)
+        if [ "$SKIP_FULL_UPGRADE" != "true" ] && [ "$APT_UP" = "false" ]; then
+            clear
+            draw_progress
+            draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
+            echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
+            read -r full_resp
+            if [[ "$full_resp" =~ ^[Yy]$ ]]; then
+                sudo nala full-upgrade --autoremove --purge --no-update
+            fi
+        fi
+        ((STEP++))
+
+        # 3.3 Flatpak Update
         clear
         draw_progress
-        draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
-        echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
-        read -r full_resp
-        if [[ "$full_resp" =~ ^[Yy]$ ]]; then
-            sudo nala full-upgrade --autoremove --purge --no-update
+        draw_header "Flatpak" "Updating Flatpak runtimes and apps"
+        if [ "$FP_UP" = "false" ]; then
+            sudo flatpak update -y
         fi
-    fi
-    ((STEP++))
+        ((STEP++))
 
-    # 3.3 Flatpak Update
-    clear
-    draw_progress
-    draw_header "Flatpak" "Updating Flatpak runtimes and apps"
-    if [ "$FP_UP" = "false" ]; then
-        sudo flatpak update -y
-    fi
-    ((STEP++))
+        # 3.4 Snap Update
+        clear
+        draw_progress
+        draw_header "Snap" "Refreshing Snap packages"
+        if [ "$SNAP_UP" = "false" ]; then
+            sudo snap refresh
+        fi
+        ((STEP++))
 
-    # 3.4 Snap Update
-    clear
-    draw_progress
-    draw_header "Snap" "Refreshing Snap packages"
-    if [ "$SNAP_UP" = "false" ]; then
-        sudo snap refresh
+        wait_user
     fi
-    ((STEP++))
-
-    wait_user
-  fi
 fi
 
 # --- 4. Cleanup Branch ( High-Precision Mode) ---
@@ -542,9 +559,8 @@ draw_header "Maintenance" "Final System Optimization"
 echo -ne "\n${C_PROMPT}Run deep system cleanup? [y/N]${C_RESET} "
 read -r resp
 if [[ ! "$resp" =~ ^[Yy]$ ]]; then
-    STEP=14
+    ((STEP+=5))
     echo -e "${C_WARN}Cleanup skipped by user.${C_RESET}"
-    wait_user
 else
     ((STEP++))
 
@@ -561,7 +577,8 @@ else
     echo -e "  Active Kernel: ${C_PROMPT}$RUNNING_K${C_RESET}"
     INSTALLED_KS=$(dpkg -l 'linux-image-*' 2>/dev/null | grep '^ii' | awk '{print $2}' | sed 's/linux-image-//g')
 
-    draw_separator "Scanning /lib/modules Path"
+    # FIXED: Enable nullglob locally to ensure empty directory scopes do not pass literal glob characters
+    shopt -s nullglob
     for mod_dir in /lib/modules/*; do
         [ -d "$mod_dir" ] || continue
         k_ver=$(basename "$mod_dir")
@@ -588,6 +605,7 @@ else
             [ ! -d "$mod_dir" ] && echo -e "      -> ${C_NALA_G}Verified Success${C_RESET}" || echo -e "      -> ${C_NALA_R}Removal Failed${C_RESET}"
         fi
     done
+    shopt -u nullglob  # FIXED: flag
 
     post_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     post_k=${post_k:-0}
@@ -595,30 +613,41 @@ else
     [ "$diff_k" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
     wait_user
 
-    # 4.2 Cache Maintenance (Nala & APT)
+    # 4.2 Cache Maintenance (Nala & APT - Fixed Precision Analytics)
     clear
     draw_progress
     draw_header "Cleanup 2/5" "Package Cache Purge"
-    pre_c=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1 || echo 0)
+
+    # Track the total raw available bytes on the root partition before purging
+    pre_space=$(df -B1 / | awk 'NR==2 {print $4}')
 
     echo -e "${C_BORDER}Clearing Nala & APT caches...${C_RESET}"
     sudo nala clean
     sudo apt-get autoclean -y
     sudo apt-get autoremove --purge -y
 
-    post_c=$(du -sb /var/cache/apt/archives 2>/dev/null | cut -f1 || echo 0)
-    TOTAL_FREED=$(( TOTAL_FREED + pre_c - post_c ))
+    # Track the total raw available bytes on the root partition after purging
+    post_space=$(df -B1 / | awk 'NR==2 {print $4}')
+
+    # True metric recovery is calculated as: post_space - pre_space
+    diff_c=$(( post_space - pre_space ))
+
+    # If blocks were successfully freed, append the delta to the global tracker
+    [ "$diff_c" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_c ))
     wait_user
 
     # 4.3 Residual Configs (Deep Scan)
     clear
     draw_progress
     draw_header "Cleanup 3/5" "Residual Configuration Files"
+
     purgestr=$(COLUMNS=200 dpkg -l | grep "^rc" | awk '{print $2}')
     if [ -n "$purgestr" ]; then
         echo -e "${C_WARN}Found leftover configs for:${C_RESET}"
         echo "$purgestr" | sed 's/^/  - /'
-        sudo dpkg --purge $purgestr
+
+        # Use xargs to safely feed the clean whitespace-delimited arguments to dpkg
+        echo "$purgestr" | xargs sudo dpkg --purge
     else
         echo -e "${C_PROMPT}Success:${C_RESET} No residual configs detected."
     fi
@@ -635,7 +664,8 @@ else
     sudo journalctl --vacuum-size=100M
 
     post_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
-    TOTAL_FREED=$(( TOTAL_FREED + pre_l - post_l ))
+    diff_l=$(( pre_l - post_l ))
+    [ "$diff_l" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_l ))
     draw_separator "Journal Cleaned"
     wait_user
 
