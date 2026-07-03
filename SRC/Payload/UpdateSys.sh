@@ -278,7 +278,7 @@ start_spinner() {
 stop_spinner() {
     kill $SPIN_PID >/dev/null 2>&1
     wait $SPIN_PID 2>/dev/null
-    echo -ne "      \b\b\b\b\b\b"
+    echo -ne "\b\b\b\b\b\b" # Clean up the spinner characters
 }
 
 # --- 2. Initial Check ---
