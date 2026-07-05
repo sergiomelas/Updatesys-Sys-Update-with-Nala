@@ -36,8 +36,9 @@ Change log:
 
 
  -V1.3.6   05-07-2026: The "Byte-Perfect Panda Guardian" Production Release.
-                      - Patched global syntax scopes (`local`), dynamic boolean variable validation (`CRITICAL_HIT`),
-                        accurate block byte storage accounting via `df`, and robust background spinner stream cleanups.
+                      - Patched global syntax scopes (`local`), dynamic boolean variable validation 
+                        (`CRITICAL_HIT`), accurate block byte storage accounting via `df`, and robust 
+                         background spinner stream cleanups.
                       - Cleans a plethora of small cosmetic bugs. Recolored the logo.
 
  -V1.3.5   25-06-2026: The "Surgical Precision Sniper" Transition Release.
