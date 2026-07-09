@@ -30,16 +30,19 @@ show_logo() {
     local ARCH=$(uname -m)
     local KERNEL=$(uname -r | cut -d'-' -f1)
 
-    # 1. FIGlet Style Header
-    echo -e "${C_WARN}${B}"
-    cat << 'EOF'
-                _   _ ____  ____    _  _____ ____  _______   ______
-               | | | |  _ \|  _ \  / \|_   _| ___|/ ___/\ \ / / ___|
-               | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \
-               | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |
-                \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/
+# 1. FIGlet Style Header (MOD: Rainbow Effect Line-by-Line)
+    local R_RED='\e[91m'
+    local R_ORG='\e[38;5;208m'
+    local R_YEL='\e[93m'
+    local R_GRN='\e[92m'
+    local R_BLU='\e[94m'
 
-EOF
+    echo -e "${R_RED}${B}                _   _ ____  ____    _  _____ ____  _______   ______${R}"
+    echo -e "${R_ORG}${B}               | | | |  _ \|  _ \  / \|_   _| ___|/ ___/\ \ / / ___|${R}"
+    echo -e "${R_YEL}${B}               | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \ ${R}"
+    echo -e "${R_GRN}${B}               | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |${R}"
+    echo -e "${R_BLU}${B}                \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/${R}"
+    echo ""
 
     # 2. Sub-Header
     echo -e "            ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"
@@ -47,19 +50,21 @@ EOF
     # 3. IBM Data Box (Internal width is 27 chars)
     echo -e "${G}"
     echo -e "                     _________________________________________"
-    echo -e "                    |  _____________________________________  |"
-    echo -e "                    | |                                     | |"
-    echo -e "                    | |                                     | |"
-    echo -e "                    | |      [ ${W}SID SENTINEL ACTIVE${G} ]        | |"
-    printf "                    | |      > DEBIAN_ARCH: ${W}%-9s${G}       | |\n" "${ARCH,,}"
-    printf "                    | |      > KERNEL: ${W}%-14s${G}       | |\n" "${KERNEL}"
-    printf "                    | |      > RISK_LVL: ${G}%-11s${G}        | |\n" "MONITORING"
-    echo -e "                    | |                                     | |"
-    echo -e "                    | |         ${W}by Sergio Melas${G}             | |"
-    echo -e "                    | |                                     | |"
-    echo -e "                    | |                                     | |"
-    echo -e "                    | |_____________________________________| |"
-    echo -e "                    |_________________________________________|"
+    echo -e "                    / ${C_WARN}_______________________________________${G} \\"
+    echo -e "                    |${C_WARN}|                                       |${G}|"
+    echo -e "                    |${C_WARN}|                              *        |${G}|"
+    echo -e "                    |${C_WARN}|                                       |${G}|"
+    echo -e "                    |${C_WARN}|${G}      [ ${W}SID SENTINEL ACTIVE${G} ]          ${C_WARN}|${G}|"
+    printf "                    |${C_WARN}|${G}      > DEBIAN_ARCH: ${W}%-9s${G}         ${C_WARN}|${G}|\n" "${ARCH,,}"
+    printf "                    |${C_WARN}|${G}      > KERNEL: ${W}%-14s${G}         ${C_WARN}|${G}|\n" "${KERNEL}"
+    printf "                    |${C_WARN}|${G}      > RISK_LVL: ${G}%-11s${G}          ${C_WARN}|${G}|\n" "MONITORING"
+    echo -e "                    |${C_WARN}|                                       |${G}|"
+    echo -e "                    |${C_WARN}|                                       |${G}|"
+    echo -e "                    |${C_WARN}|         ${W}by Sergio Melas${G}               ${C_WARN}|${G}|"
+    echo -e "                    |${C_WARN}|   *                                   |${G}|"
+    echo -e "                    |${C_WARN}|                              *        |${G}|"
+    echo -e "                    |${C_WARN}|_______________________________________|${G}|"
+    echo -e "                    \_________________________________________/"
 
     # 4. Keyboard/Base
     echo -e "                    ${G}/_________________________________________\\"
@@ -68,9 +73,12 @@ EOF
     echo -e "                 /    ${C_WARN}_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_    ${G}\\"
     echo -e "                /    ${C_WARN}|SHIFT|_|_|_|_|_|_|_|_|_|_|_|_|_|_|ENTER|    ${G}\\"
     echo -e "               /    ${C_WARN}|CTRL|ALT|_|_|________________|_|_|_|_|<|v|>|  ${G}\\"
-    echo -e "              /_____________________________________________________\\"
-    echo -e "              |_____________________________________________________|"
+    echo -e "              /                  _________________                  \\"
+    echo -e "             /                  /                 \                  \\"
+    echo -e "            /__________________/___________________\__________________\\"
+    echo -e "            |_________________________________________________________|"
     echo -e "${R}"
+    echo -e " "
 }
 
 draw_progress() {
@@ -498,6 +506,9 @@ else
         wait_user
     else
         # 3.1 Standard Upgrade - Show only what is actually pending
+        if [ "$FULL_DANGER" = "false" ]; then
+            echo -e "  ${C_NALA_G}󰄬 No risk found.${C_RESET}\n"
+        fi
         draw_header "Update Pending" "Available Upgrades"
 
         [ "$APT_UP" = "false" ] && echo -e " ${C_WARN}󰏓${C_RESET} APT Packages"
