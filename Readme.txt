@@ -25,7 +25,7 @@ KEY FEATURES:
 - Sid Protection: Dedicated manual confirmation for Full-Upgrades.
 
 INSTALLATION:
-Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.3.5_all.deb
+Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.x.x_all.deb
 
 USAGE:
 Type 'updatesys' from any command line or run via Alt+F2.
