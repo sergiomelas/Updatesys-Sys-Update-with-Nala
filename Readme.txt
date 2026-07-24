@@ -34,10 +34,13 @@ Desktop entry (Icon) is automatically created in System Tools.
 ##################################################################
 Change log:
 
+ -V1.3.7   22-07-2026: The "Cinematic Canvas & Class Isolation" Release.
+                      - Integrated adaptive screen retreat and collapsing square animations with cursor position detection.
+                      - Fixed cursor coordinate reading syntax errors using input buffer flushes and regex fallbacks.
 
  -V1.3.6   05-07-2026: The "Byte-Perfect Panda Guardian" Production Release.
-                      - Patched global syntax scopes (`local`), dynamic boolean variable validation 
-                        (`CRITICAL_HIT`), accurate block byte storage accounting via `df`, and robust 
+                      - Patched global syntax scopes (`local`), dynamic boolean variable validation
+                        (`CRITICAL_HIT`), accurate block byte storage accounting via `df`, and robust
                          background spinner stream cleanups.
                       - Cleans a plethora of small cosmetic bugs. Recolored the logo.
 
@@ -85,20 +88,3 @@ Change log:
  -V0.1   15-05-2019:  The "ancestor" Private Edition for personal use
                       - Created initial core script architecture for automated package maintenance.
                       - Integrated basic cleanups for local APT cache and system log files.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##################################################################

@@ -19,7 +19,6 @@ TOTAL_STEPS=15
 TOTAL_FREED=0
 
 show_logo() {
-    clear
     # --- Local Color Definitions ---
     local G='\e[92m'  # Light Green
     local B='\e[1m'   # Bold
@@ -36,13 +35,20 @@ show_logo() {
     local R_YEL='\e[93m'
     local R_GRN='\e[92m'
     local R_BLU='\e[94m'
+    tim=0.02
 
-    echo -e "${R_RED}${B}                _   _ ____  ____    _  _____ ____  _______   ______${R}"
-    echo -e "${R_ORG}${B}               | | | |  _ \|  _ \  / \|_   _| ___|/ ___/\ \ / / ___|${R}"
-    echo -e "${R_YEL}${B}               | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \ ${R}"
-    echo -e "${R_GRN}${B}               | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |${R}"
-    echo -e "${R_BLU}${B}                \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/${R}"
+    echo -e "${R_RED}${B}               _   _ ____  ____    _  _____ ____  _______   ______${R}"
+    sleep $tim
+    echo -e "${R_ORG}${B}              | | | |  _ \|  _ \  / \|_   _| ___|/ ___/\ \ / / ___|${R}"
+    sleep $tim
+    echo -e "${R_YEL}${B}              | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \ ${R}"
+    sleep $tim
+    echo -e "${R_GRN}${B}              | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |${R}"
+    sleep $tim
+    echo -e "${R_BLU}${B}               \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/${R}"
+    sleep $tim
     echo ""
+    sleep $tim
 
     # 2. Sub-Header
     echo -e "            ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"
@@ -50,35 +56,178 @@ show_logo() {
     # 3. IBM Data Box (Internal width is 27 chars)
     echo -e "${G}"
     echo -e "                     _________________________________________"
+    sleep $tim
     echo -e "                    / ${C_WARN}_______________________________________${G} \\"
+    sleep $tim
     echo -e "                    |${C_WARN}|                                       |${G}|"
+    sleep $tim
     echo -e "                    |${C_WARN}|                              *        |${G}|"
+    sleep $tim
     echo -e "                    |${C_WARN}|                                       |${G}|"
-    echo -e "                    |${C_WARN}|${G}      [ ${W}SID SENTINEL ACTIVE${G} ]          ${C_WARN}|${G}|"
-    printf "                    |${C_WARN}|${G}      > DEBIAN_ARCH: ${W}%-9s${G}         ${C_WARN}|${G}|\n" "${ARCH,,}"
-    printf "                    |${C_WARN}|${G}      > KERNEL: ${W}%-14s${G}         ${C_WARN}|${G}|\n" "${KERNEL}"
-    printf "                    |${C_WARN}|${G}      > RISK_LVL: ${G}%-11s${G}          ${C_WARN}|${G}|\n" "MONITORING"
+    sleep $tim
+    echo -e "                    |${C_WARN}|${G}        [ ${W}SID SENTINEL ACTIVE${G} ]        ${C_WARN}|${G}|"
+    sleep $tim
+    printf "                    |${C_WARN}|${G}        > DEBIAN_ARCH: ${W}%-9s${G}       ${C_WARN}|${G}|\n" "${ARCH,,}"
+    sleep $tim
+    printf "                    |${C_WARN}|${G}        > KERNEL: ${W}%-14s${G}       ${C_WARN}|${G}|\n" "${KERNEL}"
+    sleep $tim
+    printf "                    |${C_WARN}|${G}        > RISK_LVL: ${G}%-11s${G}        ${C_WARN}|${G}|\n" "MONITORING"
+    sleep $tim
     echo -e "                    |${C_WARN}|                                       |${G}|"
+    sleep $tim
     echo -e "                    |${C_WARN}|                                       |${G}|"
-    echo -e "                    |${C_WARN}|         ${W}by Sergio Melas${G}               ${C_WARN}|${G}|"
+    sleep $tim
+    echo -e "                    |${C_WARN}|            ${W}by Sergio Melas${G}            ${C_WARN}|${G}|"
+    sleep $tim
     echo -e "                    |${C_WARN}|   *                                   |${G}|"
+    sleep $tim
     echo -e "                    |${C_WARN}|                              *        |${G}|"
+    sleep $tim
     echo -e "                    |${C_WARN}|_______________________________________|${G}|"
+    sleep $tim
     echo -e "                    \_________________________________________/"
+    sleep $tim
 
     # 4. Keyboard/Base
     echo -e "                    ${G}/_________________________________________\\"
+    sleep $tim
     echo -e "                   /    ${C_WARN}_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _    ${G}\\"
-    echo -e "                  /    ${C_WARN}|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|    ${G}\\"
-    echo -e "                 /    ${C_WARN}_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_    ${G}\\"
-    echo -e "                /    ${C_WARN}|SHIFT|_|_|_|_|_|_|_|_|_|_|_|_|_|_|ENTER|    ${G}\\"
-    echo -e "               /    ${C_WARN}|CTRL|ALT|_|_|________________|_|_|_|_|<|v|>|  ${G}\\"
+    sleep $tim
+    echo -e "                  /    ${C_WARN}/_/_/_/_/_/_/_|_|_|_|_|_\_\_\_\_\_\_\    ${G}\\"
+    sleep $tim
+    echo -e "                 /    ${C_WARN}_/_/_/_/_/_/_|_|_|_|_|_|_|_\_\_\_\_\_\_    ${G}\\"
+    sleep $tim
+    echo -e "                /    ${C_WARN}/SHIFT/_/_/_|_|_|_|_|_|_|_|_|_\_\_\ ENTER\   ${G}\\"
+    sleep $tim
+    echo -e "               /    ${C_WARN}/CTRL/ALT/_/_/________________\_\_\_\<\ V\>\   ${G}\\"
+    sleep $tim
     echo -e "              /                  _________________                  \\"
+    sleep $tim
     echo -e "             /                  /                 \                  \\"
+    sleep $tim
     echo -e "            /__________________/___________________\__________________\\"
+    sleep $tim
     echo -e "            |_________________________________________________________|"
+    sleep $tim
     echo -e "${R}"
+    sleep $tim
     echo -e " "
+}
+
+bottom_up_clean() {
+    local cols=$(tput cols)
+    local lines=$(tput lines)
+    local row col response
+
+    # 1. Flush input buffer
+    read -sdR -t 0.05 -n 10000 2>/dev/null
+
+    # 2. Get current cursor row
+    echo -ne "\e[6n"
+    if read -sdR -t 0.2 response 2>/dev/null; then
+        response=${response#*[[}
+        row=${response%;*}
+    fi
+
+    # Fallback to total lines if we can't read the cursor
+    if [[ ! "$row" =~ ^[0-9]+$ ]]; then
+        row=$lines
+    fi
+
+    local current_y=$((row - 1))
+
+    # Hide cursor for a clean effect
+    tput civis
+
+    # 3. INSTANTLY clear everything below the cursor (no animation here)
+    # This removes the "dead pause" if you are in the middle of the screen
+    tput ed
+
+    # 4. Create the empty line padding
+    local empty_line=$(printf '%*s' "$cols" "")
+
+    # 5. Smart Delay: faster if there are many lines to clear, slower if few
+    local delay=0.03
+    if [ $current_y -gt 20 ]; then
+        delay=0.015 # Speed up if we have to clear a lot of lines
+    fi
+
+    # 6. Animate ONLY from the cursor position up to the top
+    for ((y=current_y; y>=0; y--)); do
+        tput cup $y 0
+        echo -n "$empty_line"
+        sleep $delay
+    done
+
+    # Reset cursor and make it visible again
+    tput cup 0 0
+    tput cnorm
+}
+
+square_clean_up() {
+    local cols=$(tput cols)
+    local lines=$(tput lines)
+    local row col response delay
+
+    # 1. Flush input buffer
+    read -sdR -t 0.05 -n 10000 2>/dev/null
+
+    # 2. Get current cursor row
+    echo -ne "\e[6n"
+    if read -sdR -t 0.2 response 2>/dev/null; then
+        response=${response#*[[}
+        row=${response%;*}
+    fi
+
+    # Fallback if we can't read cursor position
+    if [[ ! "$row" =~ ^[0-9]+$ ]]; then
+        row=$lines
+    fi
+
+    local current_y=$((row - 1))
+
+    # Hide cursor
+    tput civis
+
+    # 3. INSTANTLY clear everything below the cursor
+    tput ed
+
+    # 4. Set 0-indexed vertical boundaries (Top and Bottom of active area)
+    local y1=0
+    local y2=$current_y
+
+    # Pre-generate a full row of spaces for instant line clearing
+    local empty_line=$(printf '%*s' "$cols" "")
+
+    # 5. Tuned Delay for Dual-Line Sweeps
+    delay=0.04
+    if [ "$current_y" -gt 35 ]; then
+        delay=0.02
+    fi
+
+    # 6. Squeeze Inward toward Center
+    while [ $y1 -le $y2 ]; do
+        # Clear top line
+        tput cup $y1 0
+        echo -n "$empty_line"
+
+        # Clear bottom line (if different from top)
+        if [ $y1 -lt $y2 ]; then
+            tput cup $y2 0
+            echo -n "$empty_line"
+        fi
+
+        # Move top downward, bottom upward
+        ((y1++))
+        ((y2--))
+
+        sleep $delay
+    done
+
+    # 7. Final clean sweep and cursor restore
+    tput clear
+    tput cup 0 0
+    tput cnorm
 }
 
 draw_progress() {
@@ -288,12 +437,15 @@ stop_spinner() {
 }
 
 # --- 2. Initial Check ---
+clear
+draw_separator "Proudly Protecting Your SID Updates"
 show_logo
 echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
 sudo ls >/dev/null
 echo -e "Thanks\n"
-sleep 1
-clear
+
+bottom_up_clean
+
 draw_progress
 draw_header "Initial Check" "Analyzing all package managers..."
 
@@ -398,7 +550,7 @@ if [ "$APT_COUNT" -gt 0 ] || [ "$FP_UP" = "false" ] || [ "$SNAP_UP" = "false" ];
     sleep 0.5
     wait_user
 
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "Sentinel Analysis" "Capturing Deep Risk Telemetry..."
 fi
@@ -450,7 +602,7 @@ RAW_RISK_SCORE=0
 
 # FAIL-SAFE: Abort if standard upgrade is broken
 if [ "$UPGRADE_DANGER" = "true" ]; then
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "!!! CRITICAL BASE FAILURE !!!" "Standard upgrade is attempting removals."
     echo -e "${C_NALA_R}FATAL: Standard 'apt upgrade' is not safe. Aborting.${C_RESET}"
@@ -459,7 +611,7 @@ fi
 
 # TRANSITION TRAP: Offer to Mask/Skip the Full-Upgrade
 if [ "$FULL_DANGER" = "true" ]; then
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "!!! DANGER DETECTED IN FULL TRANSITION!!!" "Potential System Destruction Found"
     explain_danger "$FULL_REMOVAL_LIST"
@@ -481,12 +633,12 @@ if [ "$FULL_DANGER" = "true" ]; then
     read -r danger_resp
     if [[ ! "$danger_resp" =~ ^[Nn]$ ]]; then
         SKIP_FULL_UPGRADE=true
-        clear
+        bottom_up_clean
         draw_progress
         draw_header "Sentinel Shield Engaged" "Safe updates enabled, dongerous transitions overrided."
         echo -e "\n ${C_WARN}󰜺${C_RESET} High-risk 'dist-upgrade' transitions will be skipped."
         wait_user
-        clear
+        bottom_up_clean
     else
         SKIP_FULL_UPGRADE=false
         echo -e "\n ${C_NALA_R}󰜺${C_RESET} Risk accepted. Proceeding with full risk."
@@ -516,7 +668,7 @@ else
         [ "$SNAP_UP" = "false" ] && echo -e " ${C_WARN}󰏓${C_RESET} Snap Daemons"
 
         wait_user
-        clear
+        bottom_up_clean
         draw_progress
         draw_header "Update Pending" "Performing standard package upgrade"
 
@@ -528,7 +680,7 @@ else
 
         # 3.2 Sid Full-Upgrade (The Intelligent Path)
         if [ "$SKIP_FULL_UPGRADE" != "true" ] && [ "$APT_UP" = "false" ]; then
-            clear
+            bottom_up_clean
             draw_progress
             draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
             echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
@@ -540,7 +692,7 @@ else
         ((STEP++))
 
         # 3.3 Flatpak Update
-        clear
+        bottom_up_clean
         draw_progress
         draw_header "Flatpak" "Updating Flatpak runtimes and apps"
         if [ "$FP_UP" = "false" ]; then
@@ -549,7 +701,7 @@ else
         ((STEP++))
 
         # 3.4 Snap Update
-        clear
+        bottom_up_clean
         draw_progress
         draw_header "Snap" "Refreshing Snap packages"
         if [ "$SNAP_UP" = "false" ]; then
@@ -562,7 +714,7 @@ else
 fi
 
 # --- 4. Cleanup Branch ( High-Precision Mode) ---
-clear
+bottom_up_clean
 draw_progress
 draw_header "Maintenance" "Final System Optimization"
 echo -ne "\n${C_PROMPT}Run deep system cleanup? [y/N]${C_RESET} "
@@ -574,7 +726,7 @@ else
     ((STEP++))
 
     # 4.1 Precision Kernel Modules Cleanup
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "Cleanup 1/5" "Analyzing Orphaned Kernel Modules"
 
@@ -623,7 +775,7 @@ else
     wait_user
 
     # 4.2 Cache Maintenance (Nala & APT - Fixed Precision Analytics)
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "Cleanup 2/5" "Package Cache Purge"
 
@@ -646,7 +798,7 @@ else
     wait_user
 
     # 4.3 Residual Configs (Deep Scan)
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "Cleanup 3/5" "Residual Configuration Files"
 
@@ -663,7 +815,7 @@ else
     wait_user
 
     # 4.4 Multi-Point Journal Vacuuming
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "Cleanup 4/5" "Log Rotation & Journal Vacuuming"
     pre_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
@@ -679,7 +831,7 @@ else
     wait_user
 
     # 4.5 DKMS Depth Check (Precision Verification)
-    clear
+    bottom_up_clean
     draw_progress
     draw_header "Cleanup 5/5" "DKMS Build Integrity Verification"
     if type -p dkms &>/dev/null; then
@@ -698,7 +850,7 @@ else
     wait_user
 fi
 # --- 5. Final Results & Interactive Reboot ---
-clear
+bottom_up_clean
 draw_progress
 FREED_HUMAN=$(numfmt --to=iec-i --suffix=B $(( TOTAL_FREED > 0 ? TOTAL_FREED : 0 )))
 draw_header "Complete" "SESSION SAVINGS: $FREED_HUMAN"
@@ -720,10 +872,12 @@ else
 fi
 
 # --- 6. Exit ---
-clear
+bottom_up_clean
 STEP=$TOTAL_STEPS
 draw_progress
+show_logo
 draw_header "Goodbye" "Process complete."
-sleep 1
+sleep 2
+square_clean_up
 kill $(ps -ho ppid -p $(ps -ho ppid -p $$)) 2>/dev/null
 exit 0
