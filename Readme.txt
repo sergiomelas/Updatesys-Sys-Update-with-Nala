@@ -25,7 +25,7 @@ KEY FEATURES:
 - Sid Protection: Dedicated manual confirmation for Full-Upgrades.
 
 INSTALLATION:
-Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.x.x_all.deb
+Debian/Ubuntu/Sid: sudo apt install ./updatesys_1.3.5_all.deb
 
 USAGE:
 Type 'updatesys' from any command line or run via Alt+F2.
@@ -37,6 +37,7 @@ Change log:
  -V1.3.7   22-07-2026: The "Cinematic Canvas & Class Isolation" Release.
                       - Integrated adaptive screen retreat and collapsing square animations with cursor position detection.
                       - Fixed cursor coordinate reading syntax errors using input buffer flushes and regex fallbacks.
+                      - shining stars...
 
  -V1.3.6   05-07-2026: The "Byte-Perfect Panda Guardian" Production Release.
                       - Patched global syntax scopes (`local`), dynamic boolean variable validation

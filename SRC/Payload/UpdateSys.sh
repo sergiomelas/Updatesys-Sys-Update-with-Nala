@@ -18,6 +18,81 @@ STEP=1
 TOTAL_STEPS=15
 TOTAL_FREED=0
 
+# --- Star Shining Engine ---
+SHINE_PID=""
+STAR_COORDS=()
+CURRENT_LOGO_LINE=0
+
+scan_line() {
+    local line_text="$1"
+    echo -e "$line_text"
+
+    # 1. Strip ANSI escape codes to calculate true character positions
+    local clean_line
+    clean_line=$(echo -e "$line_text" | sed 's/\x1b\[[0-9;]*m//g')
+
+    # 2. Record star column ($i) and relative line index
+    for (( i=0; i<${#clean_line}; i++ )); do
+        if [ "${clean_line:$i:1}" == "*" ]; then
+            STAR_COORDS+=("$CURRENT_LOGO_LINE $i")
+        fi
+    done
+
+    ((CURRENT_LOGO_LINE++))
+}
+
+shine_stars_daemon() {
+    local glyphs=('.' '+' '*' '✦' '*' '+')
+    local colors=('\e[2;37m' '\e[0;97m' '\e[1;93m' '\e[1;96m' '\e[1;93m' '\e[0;97m')
+
+    # Restore original stars cleanly upon exit/SIGTERM
+    trap '
+        for coord_str in "${STAR_COORDS[@]}"; do
+            local coord=($coord_str)
+            tput sc
+            tput cup ${coord[0]} ${coord[1]}
+            echo -ne "\e[93m*\e[0m"
+            tput rc
+        done
+        tput cnorm
+        exit 0
+    ' SIGTERM SIGINT
+
+    tput civis
+
+    local step=0
+    while true; do
+        for idx in "${!STAR_COORDS[@]}"; do
+            local phase=$(( (step + idx * 2) % ${#glyphs[@]} ))
+            local coord=(${STAR_COORDS[$idx]})
+            local r=${coord[0]}
+            local c=${coord[1]}
+
+            # Save main cursor (sc), move & draw star frame, restore cursor (rc)
+            tput sc
+            tput cup $r $c
+            echo -ne "${colors[$phase]}${glyphs[$phase]}\e[0m"
+            tput rc
+        done
+        ((step++))
+        sleep 0.3
+    done
+}
+
+start_shine() {
+    [ ${#STAR_COORDS[@]} -eq 0 ] && return
+    shine_stars_daemon &
+    SHINE_PID=$!
+}
+
+stop_shine() {
+    if [ -n "$SHINE_PID" ] && kill -0 "$SHINE_PID" 2>/dev/null; then
+        kill -TERM "$SHINE_PID" 2>/dev/null
+        wait "$SHINE_PID" 2>/dev/null
+        SHINE_PID=""
+    fi
+}
+
 show_logo() {
     # --- Local Color Definitions ---
     local G='\e[92m'  # Light Green
@@ -29,7 +104,7 @@ show_logo() {
     local ARCH=$(uname -m)
     local KERNEL=$(uname -r | cut -d'-' -f1)
 
-# 1. FIGlet Style Header (MOD: Rainbow Effect Line-by-Line)
+    # 1. FIGlet Style Header (MOD: Rainbow Effect Line-by-Line)
     local R_RED='\e[91m'
     local R_ORG='\e[38;5;208m'
     local R_YEL='\e[93m'
@@ -37,87 +112,92 @@ show_logo() {
     local R_BLU='\e[94m'
     tim=0.02
 
-    echo -e "${R_RED}${B}               _   _ ____  ____    _  _____ ____  _______   ______${R}"
-    sleep $tim
-    echo -e "${R_ORG}${B}              | | | |  _ \|  _ \  / \|_   _| ___|/ ___/\ \ / / ___|${R}"
-    sleep $tim
-    echo -e "${R_YEL}${B}              | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \ ${R}"
-    sleep $tim
-    echo -e "${R_GRN}${B}              | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |${R}"
-    sleep $tim
-    echo -e "${R_BLU}${B}               \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/${R}"
-    sleep $tim
-    echo ""
-    sleep $tim
+    # Reset tracking state on each call
+    STAR_COORDS=()
+    CURRENT_LOGO_LINE=0
+
+    echo -e "${R_RED}${B}               _   _ ____  ____    _  _____ ____  _______   ______${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "${R_ORG}${B}              | | | |  _ \|  _ \  / \|_   _| ___|/ ___/\ \ / / ___|${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "${R_YEL}${B}              | | | | |_) | | | |/ _ \ | | |  _| \___ \ \ V /\___ \ ${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "${R_GRN}${B}              | |_| |  __/| |_/ / ___ \| | | |___ ___) | | |  ___) |${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "${R_BLU}${B}               \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo ""; ((CURRENT_LOGO_LINE++)); sleep $tim
 
     # 2. Sub-Header
-    echo -e "            ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"
+    echo -e "            ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
 
     # 3. IBM Data Box (Internal width is 27 chars)
-    echo -e "${G}"
-    echo -e "                     _________________________________________"
-    sleep $tim
-    echo -e "                    / ${C_WARN}_______________________________________${G} \\"
-    sleep $tim
-    echo -e "                    |${C_WARN}|                                       |${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|                              *        |${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|                                       |${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|${G}        [ ${W}SID SENTINEL ACTIVE${G} ]        ${C_WARN}|${G}|"
-    sleep $tim
-    printf "                    |${C_WARN}|${G}        > DEBIAN_ARCH: ${W}%-9s${G}       ${C_WARN}|${G}|\n" "${ARCH,,}"
-    sleep $tim
-    printf "                    |${C_WARN}|${G}        > KERNEL: ${W}%-14s${G}       ${C_WARN}|${G}|\n" "${KERNEL}"
-    sleep $tim
-    printf "                    |${C_WARN}|${G}        > RISK_LVL: ${G}%-11s${G}        ${C_WARN}|${G}|\n" "MONITORING"
-    sleep $tim
-    echo -e "                    |${C_WARN}|                                       |${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|                                       |${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|            ${W}by Sergio Melas${G}            ${C_WARN}|${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|   *                                   |${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|                              *        |${G}|"
-    sleep $tim
-    echo -e "                    |${C_WARN}|_______________________________________|${G}|"
-    sleep $tim
-    echo -e "                    \_________________________________________/"
-    sleep $tim
+# 3. IBM Data Box (Internal width is 27 chars)
+    echo -e "${G}"; ((CURRENT_LOGO_LINE++))
+    echo -e "                     _________________________________________"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    / ${C_WARN}_______________________________________${G} \\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    scan_line "                    |${C_WARN}|                               *       |${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|              *                        |${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|                               *       |${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|${G}        [ ${W}SID SENTINEL ACTIVE${G} ]        ${C_WARN}|${G}|"; sleep $tim
+    printf "                    |${C_WARN}|${G}        > DEBIAN_ARCH: ${W}%-9s${G}       ${C_WARN}|${G}|\n" "${ARCH,,}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+
+    # Formatted telemetry rows with star scans (Variables expanded before scanning)
+    kernel_str=$(printf "                    |${C_WARN}|${G}   *    > KERNEL: ${W}%-14s${G}       ${C_WARN}|${G}|\n" "${KERNEL}")
+    scan_line "$kernel_str"; sleep $tim
+
+    risk_str=$(printf "                    |${C_WARN}|${G}        > RISK_LVL: ${G}%-11s${G}  *     ${C_WARN}|${G}|\n" "MONITORING")
+    scan_line "$risk_str"; sleep $tim
+
+    scan_line "                    |${C_WARN}|                                       |${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|        *                              |${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|            ${W}by Sergio Melas${G}            ${C_WARN}|${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|   *                                   |${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|        *                     *        |${G}|"; sleep $tim
+    scan_line "                    |${C_WARN}|_______________________________________|${G}|"; sleep $tim
+    echo -e "                    \_________________________________________/"; ((CURRENT_LOGO_LINE++)); sleep $tim
 
     # 4. Keyboard/Base
-    echo -e "                    ${G}/_________________________________________\\"
-    sleep $tim
-    echo -e "                   /    ${C_WARN}_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _    ${G}\\"
-    sleep $tim
-    echo -e "                  /    ${C_WARN}/_/_/_/_/_/_/_|_|_|_|_|_\_\_\_\_\_\_\    ${G}\\"
-    sleep $tim
-    echo -e "                 /    ${C_WARN}_/_/_/_/_/_/_|_|_|_|_|_|_|_\_\_\_\_\_\_    ${G}\\"
-    sleep $tim
-    echo -e "                /    ${C_WARN}/SHIFT/_/_/_|_|_|_|_|_|_|_|_|_\_\_\ ENTER\   ${G}\\"
-    sleep $tim
-    echo -e "               /    ${C_WARN}/CTRL/ALT/_/_/________________\_\_\_\<\ V\>\   ${G}\\"
-    sleep $tim
-    echo -e "              /                  _________________                  \\"
-    sleep $tim
-    echo -e "             /                  /                 \                  \\"
-    sleep $tim
-    echo -e "            /__________________/___________________\__________________\\"
-    sleep $tim
-    echo -e "            |_________________________________________________________|"
-    sleep $tim
-    echo -e "${R}"
-    sleep $tim
-    echo -e " "
+    echo -e "                    ${G}/_________________________________________\\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                   /    ${C_WARN}_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _    ${G}\\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                  /    ${C_WARN}/_/_/_/_/_/_/_|_|_|_|_|_\_\_\_\_\_\_\    ${G}\\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                 /    ${C_WARN}_/_/_/_/_/_/_|_|_|_|_|_|_|_\_\_\_\_\_\_    ${G}\\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                /    ${C_WARN}/SHIFT/_/_/_|_|_|_|_|_|_|_|_|_\_\_\ ENTER\   ${G}\\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "               /    ${C_WARN}/CTRL/ALT/_/_/________________\_\_\_\<\ V\>\   ${G}\\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "              /                  _________________                  \\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "             /                  /                 \                  \\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "            /__________________/___________________\__________________\\"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "            |_________________________________________________________|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e " "; ((CURRENT_LOGO_LINE++))
+
+    # Calculate absolute terminal Y positions after all drawing and scrolling completes
+    exec 6<&0; exec 0</dev/tty
+    local old_stty=$(stty -g)
+    stty raw -echo min 0 time 1
+    echo -ne "\033[6n" >/dev/tty
+    local pos
+    read -r -d R pos
+    stty "$old_stty"
+    exec 0<&6
+
+    local end_y=${pos#*\[}
+    end_y=$((${end_y%%;*} - 1))
+    local start_y=$((end_y - CURRENT_LOGO_LINE))
+
+    # Convert relative line numbers to absolute terminal rows
+    for idx in "${!STAR_COORDS[@]}"; do
+        local coord=(${STAR_COORDS[$idx]})
+        local rel_line=${coord[0]}
+        local col=${coord[1]}
+        STAR_COORDS[$idx]="$((start_y + rel_line)) $col"
+    done
+
+    # Spawn background star process
+    start_shine
 }
 
 bottom_up_clean() {
     local cols=$(tput cols)
     local lines=$(tput lines)
     local row col response
+
+    stop_shine
 
     # 1. Flush input buffer
     read -sdR -t 0.05 -n 10000 2>/dev/null
@@ -168,6 +248,8 @@ square_clean_up() {
     local cols=$(tput cols)
     local lines=$(tput lines)
     local row col response delay
+
+    stop_shine
 
     # 1. Flush input buffer
     read -sdR -t 0.05 -n 10000 2>/dev/null
@@ -875,9 +957,20 @@ fi
 bottom_up_clean
 STEP=$TOTAL_STEPS
 draw_progress
+
+# 1. Print the static logo
 show_logo
-draw_header "Goodbye" "Process complete."
 sleep 2
+
+# 2. Stop the star daemon immediately so no subshell hangs in the background
+stop_shine
+sleep 5
+draw_header "Goodbye" "Process complete."
+
+# 3. Clean up terminal screen
 square_clean_up
+
+# 4. Restore cursor and exit cleanly
+tput cnorm
 kill $(ps -ho ppid -p $(ps -ho ppid -p $$)) 2>/dev/null
 exit 0
