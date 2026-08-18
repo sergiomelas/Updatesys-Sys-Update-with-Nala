@@ -34,9 +34,18 @@ Desktop entry (Icon) is automatically created in System Tools.
 ##################################################################
 Change log:
 
+##################################################################
+Change log:
+
+ -V1.4.0   18-08-2026: The "Sentinel Cascade & Pure Orbit" Milestone Release.
+                      - Dual-Engine Transition Probe: Hybrid APT/Nala deep solver via
+                        temp buffers for accurate 180+ dependency cascade telemetry.
+                      - Launcher Direct Hand-Off: Direct wrapper execution for clean,
+                        automatic window termination without nested PID kills.
+
  -V1.3.7   22-07-2026: The "Cinematic Canvas & Class Isolation" Release.
-                      - Integrated adaptive screen retreat and collapsing square animations with cursor position detection.
-                      - Fixed cursor coordinate reading syntax errors using input buffer flushes and regex fallbacks.
+                      - Integrated adaptive screen retreat/collapsing animations.
+                      - Fixed cursor coordinate parsing via buffer flushes/regex.
                       - shining stars...
 
  -V1.3.6   05-07-2026: The "Byte-Perfect Panda Guardian" Production Release.

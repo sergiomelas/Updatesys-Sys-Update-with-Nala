@@ -18,40 +18,74 @@ STEP=1
 TOTAL_STEPS=15
 TOTAL_FREED=0
 
-# --- Star Shining Engine ---
+# --- Dynamic Relocating Star Engine ---
 SHINE_PID=""
-STAR_COORDS=()
-CURRENT_LOGO_LINE=0
+SAFE_STAR_SLOTS=()
+START_Y=0
+MAX_ACTIVE_STARS=5  # Change this integer to adjust maximum concurrent active stars
 
-scan_line() {
-    local line_text="$1"
-    echo -e "$line_text"
+INIT_SAFE_SLOTS() {
+    SAFE_STAR_SLOTS=(
+        # Upper Screen Region (Above "SID SENTINEL ACTIVE")
+        "10 24" "10 32" "10 40" "10 48" "10 56"
+        "11 26" "11 36" "11 44" "11 54"
+        "12 24" "12 34" "12 46" "12 56"
 
-    # 1. Strip ANSI escape codes to calculate true character positions
-    local clean_line
-    clean_line=$(echo -e "$line_text" | sed 's/\x1b\[[0-9;]*m//g')
+        # Rows 14, 15, 16 ARE STRICTLY EXCLUDED!
+        # (Protects DEBIAN_ARCH, KERNEL, and RISK_LVL from being overwritten/erased)
 
-    # 2. Record star column ($i) and relative line index
-    for (( i=0; i<${#clean_line}; i++ )); do
-        if [ "${clean_line:$i:1}" == "*" ]; then
-            STAR_COORDS+=("$CURRENT_LOGO_LINE $i")
-        fi
-    done
+        # Mid-Lower Screen Region (Below "by Sergio Melas")
+        "18 26" "18 36" "18 46" "18 54"
 
-    ((CURRENT_LOGO_LINE++))
+        # Lowest Safe Interior Lines
+        "20 24" "20 32" "20 40" "20 48" "20 56"
+        "21 26" "21 34" "21 44" "21 54"
+    )
 }
 
 shine_stars_daemon() {
-    local glyphs=('.' '+' '*' '✦' '*' '+')
-    local colors=('\e[2;37m' '\e[0;97m' '\e[1;93m' '\e[1;96m' '\e[1;93m' '\e[0;97m')
+    local glyphs=('.' '+' 'x' '*' '✦' '*' 'x' '+' '.')
+    local colors=('\e[2;37m' '\e[0;97m' '\e[1;93m' '\e[1;96m' '\e[1;97m' '\e[1;96m' '\e[1;93m' '\e[0;97m' '\e[2;37m')
 
-    # Restore original stars cleanly upon exit/SIGTERM
+    # Convert relative slots to absolute screen lines
+    local abs_slots=()
+    for slot in "${SAFE_STAR_SLOTS[@]}"; do
+        local parts=($slot)
+        abs_slots+=("$((START_Y + parts[0])) ${parts[1]}")
+    done
+
+    # Active stars state derived from MAX_ACTIVE_STARS
+    local num_stars=${MAX_ACTIVE_STARS:-4}
+    local star_pos=()
+    local star_step=()
+
+    local pool_size=${#abs_slots[@]}
+    for ((s=0; s<num_stars; s++)); do
+        star_pos[s]=$(( (s * (pool_size / num_stars)) % pool_size ))
+        star_step[s]=$(( s * 2 ))
+    done
+
+    # --- Walking Penguin Animation State ---
+    # Rows 0-5: FIGlet logo | Rows 6-9: Clear middle corridor | Row 10+: IBM Box
+    local PENGUIN_Y=$((START_Y + 2))  # Placed in the corridor between header and computer box
+    local PENGUIN_X=4                 # Starting column offset
+    local PENGUIN_MAX_X=70            # Reset column threshold
+    local PENGUIN_COOLDOWN=0          # Pause between walking cycles
+    local WALK_FRAME=0                # Frame toggle (0 or 1)
+
+    # Trap exit signals to clean up star remnants and penguin sprite
     trap '
-        for coord_str in "${STAR_COORDS[@]}"; do
-            local coord=($coord_str)
+        for ((s=0; s<num_stars; s++)); do
+            local coord=(${abs_slots[${star_pos[s]}]})
             tput sc
-            tput cup ${coord[0]} ${coord[1]}
-            echo -ne "\e[93m*\e[0m"
+            tput cup ${coord[0]} ${coord[1]} 2>/dev/null
+            echo -ne " "
+            tput rc
+        done
+        for i in {0..2}; do
+            tput sc
+            tput cup $((PENGUIN_Y + i)) $((PENGUIN_X > 0 ? PENGUIN_X - 1 : 0)) 2>/dev/null
+            echo -ne "      "
             tput rc
         done
         tput cnorm
@@ -60,27 +94,93 @@ shine_stars_daemon() {
 
     tput civis
 
-    local step=0
     while true; do
-        for idx in "${!STAR_COORDS[@]}"; do
-            local phase=$(( (step + idx * 2) % ${#glyphs[@]} ))
-            local coord=(${STAR_COORDS[$idx]})
+        # --- 1. Star Twinkle Step ---
+        for ((s=0; s<num_stars; s++)); do
+            local step=${star_step[s]}
+            local pos_idx=${star_pos[s]}
+            local coord=(${abs_slots[$pos_idx]})
+
             local r=${coord[0]}
             local c=${coord[1]}
 
-            # Save main cursor (sc), move & draw star frame, restore cursor (rc)
             tput sc
-            tput cup $r $c
-            echo -ne "${colors[$phase]}${glyphs[$phase]}\e[0m"
+            tput cup $r $c 2>/dev/null
+            echo -ne "${colors[$step]}${glyphs[$step]}\e[0m"
             tput rc
+
+            ((star_step[s]++))
+
+            if [ ${star_step[s]} -ge ${#glyphs[@]} ]; then
+                star_step[s]=0
+                tput sc
+                tput cup $r $c 2>/dev/null
+                echo -ne " "
+                tput rc
+                star_pos[s]=$(( RANDOM % pool_size ))
+            fi
         done
-        ((step++))
-        sleep 0.3
+
+        # --- 2. Walking Penguin Animation ---
+        if [ "$PENGUIN_COOLDOWN" -le 0 ]; then
+            # Clean trailing space from the previous step
+            local erase_x=$((PENGUIN_X - 1))
+            [ "$erase_x" -lt 0 ] && erase_x=0
+
+            tput sc
+            for i in {0..2}; do
+                tput cup $((PENGUIN_Y + i)) $erase_x 2>/dev/null
+                echo -ne " "
+            done
+            tput rc
+
+            # Render Animated Penguin Sprite
+            if [ "$PENGUIN_X" -le "$PENGUIN_MAX_X" ]; then
+                tput sc
+                if [ "$WALK_FRAME" -eq 0 ]; then
+                    # Frame 1: Left foot forward
+                    tput cup $((PENGUIN_Y)) $PENGUIN_X 2>/dev/null
+                    echo -ne "\e[1;97m (o_ \e[0m"
+                    tput cup $((PENGUIN_Y + 1)) $PENGUIN_X 2>/dev/null
+                    echo -ne "\e[1;97m//\\\\\ \e[0m"
+                    tput cup $((PENGUIN_Y + 2)) $PENGUIN_X 2>/dev/null
+                    echo -ne "\e[1;93m V_/_\e[0m"
+                    WALK_FRAME=1
+                else
+                    # Frame 2: Right foot forward
+                    tput cup $((PENGUIN_Y)) $PENGUIN_X 2>/dev/null
+                    echo -ne "\e[1;97m (o_ \e[0m"
+                    tput cup $((PENGUIN_Y + 1)) $PENGUIN_X 2>/dev/null
+                    echo -ne "\e[1;97m//\\\\\ \e[0m"
+                    tput cup $((PENGUIN_Y + 2)) $PENGUIN_X 2>/dev/null
+                    echo -ne "\e[1;93m  _\_V\e[0m"
+                    WALK_FRAME=0
+                fi
+                tput rc
+
+                ((PENGUIN_X++)) # Move 1 column per tick
+            else
+                # Clean up final footprint at the end of the pass
+                tput sc
+                for i in {0..2}; do
+                    tput cup $((PENGUIN_Y + i)) $((PENGUIN_MAX_X - 1)) 2>/dev/null
+                    echo -ne "      "
+                done
+                tput rc
+
+                PENGUIN_X=4
+                PENGUIN_COOLDOWN=40 # Pause ~4 seconds before next walk
+            fi
+        else
+            ((PENGUIN_COOLDOWN--))
+        fi
+
+        sleep 0.10
     done
 }
 
 start_shine() {
-    [ ${#STAR_COORDS[@]} -eq 0 ] && return
+    [ ${#SAFE_STAR_SLOTS[@]} -eq 0 ] && return
     shine_stars_daemon &
     SHINE_PID=$!
 }
@@ -95,25 +195,24 @@ stop_shine() {
 
 show_logo() {
     # --- Local Color Definitions ---
-    local G='\e[92m'  # Light Green
-    local B='\e[1m'   # Bold
-    local W='\e[97m'  # White
-    local R='\e[0m'   # Reset
+    local G='\e[92m'       # Light Green
+    local B='\e[1m'        # Bold
+    local W='\e[97m'       # White
+    local R='\e[0m'        # Reset
+    local C_WARN='\e[93m'  # Yellow/Warning
 
     # --- Dynamic Telemetry ---
     local ARCH=$(uname -m)
     local KERNEL=$(uname -r | cut -d'-' -f1)
 
-    # 1. FIGlet Style Header (MOD: Rainbow Effect Line-by-Line)
+    # 1. FIGlet Style Header
     local R_RED='\e[91m'
     local R_ORG='\e[38;5;208m'
     local R_YEL='\e[93m'
     local R_GRN='\e[92m'
     local R_BLU='\e[94m'
-    tim=0.02
+    local tim=0.02
 
-    # Reset tracking state on each call
-    STAR_COORDS=()
     CURRENT_LOGO_LINE=0
 
     echo -e "${R_RED}${B}               _   _ ____  ____    _  _____ ____  _______   ______${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
@@ -123,33 +222,30 @@ show_logo() {
     echo -e "${R_BLU}${B}               \___/|_|   |____/_/   \_\_| |_____|____/  |_| |____/${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
     echo ""; ((CURRENT_LOGO_LINE++)); sleep $tim
 
+    echo -e ""
+    echo -e ""
+    echo -e ""
+    echo -e ""
     # 2. Sub-Header
     echo -e "            ${G}SID SENTINEL: ARCHITECTURE ENFORCEMENT & RISK-AWARE UPDATES${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
 
-    # 3. IBM Data Box (Internal width is 27 chars)
-# 3. IBM Data Box (Internal width is 27 chars)
+    # 3. IBM Data Box (Clean inner space)
     echo -e "${G}"; ((CURRENT_LOGO_LINE++))
     echo -e "                     _________________________________________"; ((CURRENT_LOGO_LINE++)); sleep $tim
     echo -e "                    / ${C_WARN}_______________________________________${G} \\"; ((CURRENT_LOGO_LINE++)); sleep $tim
-    scan_line "                    |${C_WARN}|                               *       |${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|              *                        |${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|                               *       |${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|${G}        [ ${W}SID SENTINEL ACTIVE${G} ]        ${C_WARN}|${G}|"; sleep $tim
+    echo -e "                    |${C_WARN}|                                       |${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|                                       |${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|                                       |${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|${G}        [ ${W}SID SENTINEL ACTIVE${G} ]        ${C_WARN}|${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
     printf "                    |${C_WARN}|${G}        > DEBIAN_ARCH: ${W}%-9s${G}       ${C_WARN}|${G}|\n" "${ARCH,,}"; ((CURRENT_LOGO_LINE++)); sleep $tim
-
-    # Formatted telemetry rows with star scans (Variables expanded before scanning)
-    kernel_str=$(printf "                    |${C_WARN}|${G}   *    > KERNEL: ${W}%-14s${G}       ${C_WARN}|${G}|\n" "${KERNEL}")
-    scan_line "$kernel_str"; sleep $tim
-
-    risk_str=$(printf "                    |${C_WARN}|${G}        > RISK_LVL: ${G}%-11s${G}  *     ${C_WARN}|${G}|\n" "MONITORING")
-    scan_line "$risk_str"; sleep $tim
-
-    scan_line "                    |${C_WARN}|                                       |${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|        *                              |${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|            ${W}by Sergio Melas${G}            ${C_WARN}|${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|   *                                   |${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|        *                     *        |${G}|"; sleep $tim
-    scan_line "                    |${C_WARN}|_______________________________________|${G}|"; sleep $tim
+    printf "                    |${C_WARN}|${G}        > KERNEL: ${W}%-14s${G}       ${C_WARN}|${G}|\n" "${KERNEL}"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    printf "                    |${C_WARN}|${G}        > RISK_LVL: ${G}%-11s${G}        ${C_WARN}|${G}|\n" "MONITORING"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|                                       |${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|                                       |${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|            ${W}by Sergio Melas${G}            ${C_WARN}|${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|                                       |${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|                                       |${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
+    echo -e "                    |${C_WARN}|_______________________________________|${G}|"; ((CURRENT_LOGO_LINE++)); sleep $tim
     echo -e "                    \_________________________________________/"; ((CURRENT_LOGO_LINE++)); sleep $tim
 
     # 4. Keyboard/Base
@@ -166,7 +262,7 @@ show_logo() {
     echo -e "${R}"; ((CURRENT_LOGO_LINE++)); sleep $tim
     echo -e " "; ((CURRENT_LOGO_LINE++))
 
-    # Calculate absolute terminal Y positions after all drawing and scrolling completes
+    # Calculate absolute terminal Y positions after drawing completes
     exec 6<&0; exec 0</dev/tty
     local old_stty=$(stty -g)
     stty raw -echo min 0 time 1
@@ -178,68 +274,55 @@ show_logo() {
 
     local end_y=${pos#*\[}
     end_y=$((${end_y%%;*} - 1))
-    local start_y=$((end_y - CURRENT_LOGO_LINE))
+    START_Y=$((end_y - CURRENT_LOGO_LINE))
 
-    # Convert relative line numbers to absolute terminal rows
-    for idx in "${!STAR_COORDS[@]}"; do
-        local coord=(${STAR_COORDS[$idx]})
-        local rel_line=${coord[0]}
-        local col=${coord[1]}
-        STAR_COORDS[$idx]="$((start_y + rel_line)) $col"
-    done
-
-    # Spawn background star process
+    INIT_SAFE_SLOTS
     start_shine
 }
 
 bottom_up_clean() {
     local cols=$(tput cols)
     local lines=$(tput lines)
-    local row col response
+    local row="" pos=""
 
     stop_shine
+    tput civis
 
-    # 1. Flush input buffer
-    read -sdR -t 0.05 -n 10000 2>/dev/null
+    # 1. Drain pending input
+    while read -r -s -t 0.05 -n 10000 _; do :; done 2>/dev/null
 
-    # 2. Get current cursor row
-    echo -ne "\e[6n"
-    if read -sdR -t 0.2 response 2>/dev/null; then
-        response=${response#*[[}
-        row=${response%;*}
+    # 2. Query cursor position directly
+    if [ -c /dev/tty ]; then
+        local old_stty
+        old_stty=$(stty -g </dev/tty 2>/dev/null)
+        stty raw -echo min 0 time 1 </dev/tty 2>/dev/null
+        echo -ne "\033[6n" >/dev/tty
+        read -r -d R pos </dev/tty 2>/dev/null
+        [ -n "$old_stty" ] && stty "$old_stty" </dev/tty 2>/dev/null
+        pos=${pos#*\[}
+        row=${pos%%;*}
     fi
 
-    # Fallback to total lines if we can't read the cursor
-    if [[ ! "$row" =~ ^[0-9]+$ ]]; then
+    # Fallback: if query failed or row <= 1, wipe full terminal height
+    if [[ ! "$row" =~ ^[0-9]+$ ]] || [ "$row" -le 1 ]; then
         row=$lines
     fi
 
     local current_y=$((row - 1))
+    [ "$current_y" -ge "$lines" ] && current_y=$((lines - 1))
+    [ "$current_y" -lt 0 ] && current_y=0
 
-    # Hide cursor for a clean effect
-    tput civis
-
-    # 3. INSTANTLY clear everything below the cursor (no animation here)
-    # This removes the "dead pause" if you are in the middle of the screen
     tput ed
-
-    # 4. Create the empty line padding
     local empty_line=$(printf '%*s' "$cols" "")
+    local delay=0.02
+    [ "$current_y" -gt 25 ] && delay=0.01
 
-    # 5. Smart Delay: faster if there are many lines to clear, slower if few
-    local delay=0.03
-    if [ $current_y -gt 20 ]; then
-        delay=0.015 # Speed up if we have to clear a lot of lines
-    fi
-
-    # 6. Animate ONLY from the cursor position up to the top
     for ((y=current_y; y>=0; y--)); do
         tput cup $y 0
         echo -n "$empty_line"
         sleep $delay
     done
 
-    # Reset cursor and make it visible again
     tput cup 0 0
     tput cnorm
 }
@@ -430,9 +513,10 @@ explain_danger() {
         add_hit "${C_PROMPT}󰡄 Virtualization:${C_RESET} VM or Container workloads may fail." 10
     fi
 
+
     # --- 12. DEVELOPER TOOLCHAIN ---
-    if echo "$list" | grep -Ei "gcc-|clang-|binutils|make|dkms|cmake|python3" >/dev/null; then
-        add_hit "${C_PROMPT}󰅩 Toolchain:${C_RESET} Compilers or headers. Impacts driver builds." 10
+    if echo "$list" | grep -Ei "gcc-|clang-|binutils|make|dkms|cmake|python3|perl|devscripts" >/dev/null; then
+        add_hit "${C_PROMPT}󰅩 Toolchain:${C_RESET} Compilers, runtimes or devscripts. Impacts core ecosystem." 15
     fi
 
     # --- 13. INPUT METHODS (Multilingual) ---
@@ -461,8 +545,8 @@ explain_danger() {
         add_hit "${C_NALA_R}󰔶 CRITICAL SYNERGY:${C_RESET} Removal during massive stall. Reinstall will fail." 40
     fi
 
-    # FIXED: Query the localized functional list argument instead of an outer global variable
-    local V_CHANGE=$(echo "$list" | grep -Ei "remv|inst" | grep -oEi "lib(kf[5-9]|qt[5-9]|gnome[0-9]|gtk[3-5]|glib[0-9])" | sort -u | wc -l)
+    # --- 18. Query library transition patterns directly from package list
+    local V_CHANGE=$(echo "$list" | grep -oEi "lib(kf[5-9]|qt[5-9]|gnome[0-9]|gtk[3-5]|glib[0-9])" | sort -u | wc -l)
     if [ "$V_CHANGE" -gt 1 ]; then
         add_hit "${C_PROMPT}󰔶 Transition:${C_RESET} Major library version jump detected (e.g. Qt5->6)." 15
     fi
@@ -523,8 +607,11 @@ clear
 draw_separator "Proudly Protecting Your SID Updates"
 show_logo
 echo -e "${C_PROMPT}Requesting administrator privileges...${C_RESET}"
-sudo ls >/dev/null
+sudo sh -c 'echo ""; ls' >/dev/null
 echo -e "Thanks\n"
+
+# Stop background animation to prevent cursor conflicts with foreground text
+stop_shine
 
 bottom_up_clean
 
@@ -532,7 +619,10 @@ draw_progress
 draw_header "Initial Check" "Analyzing all package managers..."
 
 
-# 2.1 APT/NALA TRUTH PROBE
+# 2.1 PACKAGE MANAGERS INITIAL STATE & APT/NALA TRUTH PROBE
+FP_UP=true
+SNAP_UP=true
+
 start_spinner "APT/Nala: Updating Repositories"
 sudo nala update >/dev/null 2>&1
 stop_spinner
@@ -543,22 +633,62 @@ start_spinner "Sentinel: Analyzing Dual-Stage Risks"
 # --- STAGE 1: Standard Upgrade Simulation (Conservative Path) ---
 SIM_UPGRADE=$(apt-get upgrade -s -o APT::Get::Upgrade-Allow-New=false 2>/dev/null)
 
-# THE SUMMARY SNIPER (Targeting the exact upgrade count from the summary line)
 UPGRADE_UPGRADES=$(echo "$SIM_UPGRADE" | grep -Ei "upgraded," | sed -E 's/([0-9]+) upgraded.*/\1/' | awk '{print $1}' | tail -n1)
 UPGRADE_UPGRADES=${UPGRADE_UPGRADES:-0}
 
-# Standard removals check
 UPGRADE_REMOVALS=$(echo "$SIM_UPGRADE" | grep -Ei "^Remv " | wc -l)
 UPGRADE_REMOVALS=${UPGRADE_REMOVALS:-0}
 
-# STAGE 2: Full-Upgrade Simulation (Transition Path)
+# --- STAGE 2: APT Solver + Orphan Cascade Simulation ---
 SIM_OUT=$(apt-get dist-upgrade -s 2>/dev/null)
-# FIXED: Added the explicit trailing space to ensure we only count real package installation lines
-# REINFORCED: Force single integer to prevent "0 0" variable pollution
+SIM_AUTOREMOVE=$(apt-get autoremove --purge -s 2>/dev/null)
+
 APT_COUNT=$(echo "$SIM_OUT" | grep -c "^Inst " | awk '{print $1}' | tail -n1)
 APT_COUNT=${APT_COUNT:-0}
 
+APT_DIST_REMOVALS=$(echo "$SIM_OUT" | grep -E "^(Remv|Purg) " | awk '{print $2}')
+APT_AUTO_REMOVALS=$(echo "$SIM_AUTOREMOVE" | grep -E "^(Remv|Purg) " | awk '{print $2}')
+
+# --- STAGE 3: Nala Probe via Isolated Temp Buffer ---
+NALA_TMP=$(mktemp)
+if command -v nala &>/dev/null; then
+    ( echo "n" | sudo nala full-upgrade --autoremove --purge --no-update > "$NALA_TMP" 2>&1 ) &
+    NALA_PID=$!
+    while kill -0 "$NALA_PID" 2>/dev/null; do
+        sleep 0.1
+    done
+    wait "$NALA_PID" 2>/dev/null
+
+    NALA_STREAM=$(tr -d '\r' < "$NALA_TMP" | sed $'s/\e\\[[0-9;]*[a-zA-Z]//g')
+
+    NALA_AUTOPURGE=$(echo "$NALA_STREAM" | awk '
+        /^[[:space:]]*(Auto-Purging|Purging|Removing)/ { in_section=1; next }
+        /^[[:space:]]*(Installing|Upgrading|Kept Back|Summary)/ { in_section=0 }
+        in_section && /^[[:space:]]+[a-z0-9]/ && !/Package:/ { print $1 }
+    ')
+
+    NALA_SUM_AP=$(echo "$NALA_STREAM" | grep -E "^[[:space:]]*Auto-Purge" | grep -oE "[0-9]+" | head -n1)
+    NALA_SUM_P=$(echo "$NALA_STREAM" | grep -E "^[[:space:]]*Purge[[:space:]]" | grep -oE "[0-9]+" | head -n1)
+    NALA_TOTAL_PURGE=$(( ${NALA_SUM_AP:-0} + ${NALA_SUM_P:-0} ))
+else
+    NALA_AUTOPURGE=""
+    NALA_TOTAL_PURGE=0
+fi
+rm -f "$NALA_TMP"
+
+# Stop the spinner only after both APT and Nala probes finish
 stop_spinner
+
+# --- Master List & Total Removal Count ---
+FULL_REMOVAL_LIST=$(echo -e "${APT_DIST_REMOVALS}\n${APT_AUTO_REMOVALS}\n${NALA_AUTOPURGE}" | sed '/^$/d' | sort -u)
+PARSED_COUNT=$(echo "$FULL_REMOVAL_LIST" | grep -v "^$" | wc -l || echo 0)
+
+if [ "${NALA_TOTAL_PURGE:-0}" -gt "$PARSED_COUNT" ]; then
+    REMOVAL_COUNT=$NALA_TOTAL_PURGE
+else
+    REMOVAL_COUNT=$PARSED_COUNT
+fi
+REMOVAL_COUNT=${REMOVAL_COUNT:-0}
 
 # --- Status Reporting ---
 APT_UP=true
@@ -566,20 +696,14 @@ if [ "$APT_COUNT" -gt 0 ]; then
     APT_UP=false
     echo -e "${C_WARN}Updates Found ($APT_COUNT)${C_RESET}"
 
-# REINFORCED: Report Safe Path with Realistic Wording
     if [ "$UPGRADE_UPGRADES" -gt 0 ]; then
         echo -e " ${C_PROMPT}󰒓${C_RESET} Safe Path: Up to ${C_NALA_G}${UPGRADE_UPGRADES}${C_RESET} packages available for standard upgrade."
     else
         echo -e " ${C_PROMPT}󰒓${C_RESET} Safe Path: ${C_NALA_R}0${C_RESET} (Full transition required for all pending updates)"
     fi
 
-    # Telemetry: Check if removals are present in the transition
-    SIM_REMOVALS_DETECTED=$(echo "$SIM_OUT" | grep -c "^Remv" | awk '{print $1}' | tail -n1)
-    SIM_REMOVALS_DETECTED=${SIM_REMOVALS_DETECTED:-0}
-
-    if [ "$SIM_REMOVALS_DETECTED" -gt 0 ]; then
-        # Logic: If removals exist, we emphasize that the Sentinel is monitoring them
-        echo -e " ${C_NALA_R}󰆴${C_RESET} Sentinel Alert: ${C_WARN}${SIM_REMOVALS_DETECTED}${C_RESET} removals required for full transition."
+    if [ "$REMOVAL_COUNT" -gt 0 ]; then
+        echo -e " ${C_NALA_R}󰆴${C_RESET} Sentinel Alert: ${C_NALA_R}${REMOVAL_COUNT}${C_RESET} removals/auto-purges detected for full transition."
     fi
 else
     echo -e "${C_NALA_G}Up to date${C_RESET}"
@@ -641,22 +765,8 @@ fi
 MAX_DELETIONS=5
 MAX_KEPT_BACK=50
 
-# 1. Capture via Native APT Simulation Lines (Surgical Snipe)
-# Catches native APT simulation lines for removals (Remv) and purges (Purg)
-REMOVAL_LIST_CLEAN=$(echo "$SIM_OUT" | grep -E "^(Remv|Purg) " | awk '{print $2}' | sort -u)
-
-# 'Inst' lines that contain an execution flag at the end inside brackets e.g. "Inst pkg [to remove]"
-# This accurately snipes packages marked for removal by the autoremove logic during transition
-AUTOREM_LIST=$(echo "$SIM_OUT" | grep "^Inst " | grep -E "\[.*remove.*\]" | awk '{print $2}' | sort -u)
-
-# 2. Calculation with Fallbacks (Pure cryptographic stream joining)
-FULL_REMOVAL_LIST=$(echo -e "${REMOVAL_LIST_CLEAN}\n${AUTOREM_LIST}" | sed '/^$/d' | sort -u)
-
-REMOVAL_COUNT=$(echo "$FULL_REMOVAL_LIST" | grep -v "^$" | wc -l || echo 0)
-REMOVAL_COUNT=${REMOVAL_COUNT:-0}
-
-# 3. Critical hits & Fragmentation (Fixed Logic Check)
-if echo "$FULL_REMOVAL_LIST" | grep -qEi "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus|maliit"; then
+# Critical hits check (System Runtimes, Toolchains, Desktop Environments)
+if echo "$FULL_REMOVAL_LIST" | grep -qEi "gnome|plasma|kde|xfce|sway|libc6|systemd|xorg|wayland|uim|fcitx|ibus|maliit|webkit|clutter|cheese|perl|python3|binutils|gcc|dpkg|apt|devscripts"; then
     CRITICAL_HIT="true"
 else
     CRITICAL_HIT="false"
@@ -717,7 +827,7 @@ if [ "$FULL_DANGER" = "true" ]; then
         SKIP_FULL_UPGRADE=true
         bottom_up_clean
         draw_progress
-        draw_header "Sentinel Shield Engaged" "Safe updates enabled, dongerous transitions overrided."
+        draw_header "Sentinel Shield Engaged" "Safe updates enabled, dangerous transitions overridden."
         echo -e "\n ${C_WARN}󰜺${C_RESET} High-risk 'dist-upgrade' transitions will be skipped."
         wait_user
         bottom_up_clean
@@ -741,7 +851,11 @@ else
     else
         # 3.1 Standard Upgrade - Show only what is actually pending
         if [ "$FULL_DANGER" = "false" ]; then
-            echo -e "  ${C_NALA_G}󰄬 No risk found.${C_RESET}\n"
+            if [ "$REMOVAL_COUNT" -gt 0 ]; then
+                echo -e "  ${C_PROMPT}󰄬 Low-Risk Transition:${C_RESET} ${C_WARN}${REMOVAL_COUNT}${C_RESET} removal(s) detected (within threshold of ${MAX_DELETIONS}).\n"
+            else
+                echo -e "  ${C_NALA_G}󰄬 No risk found.${C_RESET}\n"
+            fi
         fi
         draw_header "Update Pending" "Available Upgrades"
 
@@ -754,21 +868,34 @@ else
         draw_progress
         draw_header "Update Pending" "Performing standard package upgrade"
 
-
+        # Stage 1: Safe Upgrade (standard packages only)
         if [ "$APT_UP" = "false" ]; then
+            draw_header "Stage 1: Standard Upgrade" "Applying safe, non-removal package updates"
             sudo nala upgrade --autoremove --install-recommends --fix-broken --purge --no-update
         fi
         ((STEP++))
 
-        # 3.2 Sid Full-Upgrade (The Intelligent Path)
+        # Stage 2: Sid Full-Upgrade (Triggers when transitions/removals like libavcodec are needed)
         if [ "$SKIP_FULL_UPGRADE" != "true" ] && [ "$APT_UP" = "false" ]; then
             bottom_up_clean
             draw_progress
-            draw_header "Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
-            echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
-            read -r full_resp
-            if [[ "$full_resp" =~ ^[Yy]$ ]]; then
-                sudo nala full-upgrade --autoremove --purge --no-update
+            draw_header "Stage 2: Sid Full-Upgrade" "Intelligent package transitions (Dist-Upgrade)"
+
+            # If Stage 1 held packages back due to required removals, default prompt to YES ([Y/n])
+            if [ "$REMOVAL_COUNT" -gt 0 ] || [ "$UPGRADE_UPGRADES" -eq 0 ]; then
+                echo -e "${C_WARN}Notice:${C_RESET} Package transitions/removals are required to complete all updates."
+                echo -ne "\n${C_PROMPT}Run nala full-upgrade now? [Y/n]${C_RESET} "
+                read -r full_resp
+
+                if [[ ! "$full_resp" =~ ^[Nn]$ ]]; then
+                    sudo nala full-upgrade --autoremove --purge --no-update
+                fi
+            else
+                echo -ne "\n${C_PROMPT}Run nala full-upgrade? [y/N]${C_RESET} "
+                read -r full_resp
+                if [[ "$full_resp" =~ ^[Yy]$ ]]; then
+                    sudo nala full-upgrade --autoremove --purge --no-update
+                fi
             fi
         fi
         ((STEP++))
@@ -781,6 +908,8 @@ else
             sudo flatpak update -y
         fi
         ((STEP++))
+
+        wait_user
 
         # 3.4 Snap Update
         bottom_up_clean
@@ -835,9 +964,15 @@ else
         fi
 
         MATCH_FOUND=false
+        # 1. Check dpkg registered kernels
         for inst_k in $INSTALLED_KS; do
             if [[ "$k_ver" == "$inst_k"* ]]; then MATCH_FOUND=true; break; fi
         done
+
+        # 2. Check boot partition for custom/compiled kernels and initrds
+        if [ -f "/boot/vmlinuz-$k_ver" ] || [ -f "/boot/initrd.img-$k_ver" ] || [ -f "/boot/config-$k_ver" ]; then
+            MATCH_FOUND=true
+        fi
 
         if [ "$MATCH_FOUND" = true ]; then
             echo -e "  [${C_BORDER}KEEP${C_RESET}] Registered: $k_ver"
@@ -960,17 +1095,17 @@ draw_progress
 
 # 1. Print the static logo
 show_logo
-sleep 2
+sleep 10
 
 # 2. Stop the star daemon immediately so no subshell hangs in the background
 stop_shine
-sleep 5
 draw_header "Goodbye" "Process complete."
+sleep 3
 
 # 3. Clean up terminal screen
 square_clean_up
 
 # 4. Restore cursor and exit cleanly
 tput cnorm
-kill $(ps -ho ppid -p $(ps -ho ppid -p $$)) 2>/dev/null
+#kill $(ps -ho ppid -p $(ps -ho ppid -p $$)) 2>/dev/null
 exit 0
