@@ -55,9 +55,10 @@ Change log:
                       - Cleans a plethora of small cosmetic bugs. Recolored the logo.
 
  -V1.3.5   25-06-2026: The "Surgical Precision Sniper" Transition Release.
-                      - Hardened extraction scopes to trap simulation removals (`Remv`/`Purg`) and input frameworks
-                      (`maliit`).
-                      - Redesigned visual hardware telemetry banner into a balanced 79-column laptop workspace layout.
+                      - Hardened extraction scopes to trap simulation removals (`Remv`/`Purg`) and 
+                       input frameworks (`maliit`).
+                      - Redesigned visual hardware telemetry banner into a balanced 79-column laptop 
+                        workspace layout.
 
  -V1.3.4   03-06-2026: The "Surgical Precision Sniper" Update.
                       - Rewrote data engines to parse updates line-by-line, ending false removal warnings.
