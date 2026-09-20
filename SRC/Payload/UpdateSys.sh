@@ -1,4 +1,4 @@
-#!/bin/bash
+F#!/bin/bash
 
 ##################################################################
 #                Pretty System Update - Precision                #
@@ -325,6 +325,7 @@ bottom_up_clean() {
 
     tput cup 0 0
     tput cnorm
+
 }
 
 square_clean_up() {
@@ -936,10 +937,69 @@ if [[ ! "$resp" =~ ^[Yy]$ ]]; then
 else
     ((STEP++))
 
-    # 4.1 Precision Kernel Modules Cleanup
+
+    # 4.1 Residual Configs (Deep Scan)
     bottom_up_clean
     draw_progress
-    draw_header "Cleanup 1/5" "Analyzing Orphaned Kernel Modules"
+    draw_header "Cleanup 1/5" "Residual Configuration Files"
+
+    purgestr=$(COLUMNS=200 dpkg -l | grep "^rc" | awk '{print $2}')
+    if [ -n "$purgestr" ]; then
+        echo -e "${C_WARN}Found leftover configs for:${C_RESET}"
+        echo "$purgestr" | sed 's/^/  - /'
+
+        # Use xargs to safely feed the clean whitespace-delimited arguments to dpkg
+        echo "$purgestr" | xargs sudo dpkg --purge
+    else
+        echo -e "${C_PROMPT}Success:${C_RESET} No residual configs detected."
+    fi
+    wait_user
+
+    # 4.2 Cache Maintenance (Nala & APT - Fixed Precision Analytics)
+    bottom_up_clean
+    draw_progress
+    draw_header "Cleanup 2/5" "Package Cache Purge"
+
+    # Track the total raw available bytes on the root partition before purging
+    pre_space=$(df -B1 / | awk 'NR==2 {print $4}')
+
+    echo -e "${C_BORDER}Clearing Nala & APT caches...${C_RESET}"
+    sudo nala clean
+    sudo apt-get autoclean -y
+    sudo apt-get autoremove --purge -y
+
+    # Track the total raw available bytes on the root partition after purging
+    post_space=$(df -B1 / | awk 'NR==2 {print $4}')
+
+    # True metric recovery is calculated as: post_space - pre_space
+    diff_c=$(( post_space - pre_space ))
+
+    # If blocks were successfully freed, append the delta to the global tracker
+    [ "$diff_c" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_c ))
+    wait_user
+
+
+    # 4.3 Multi-Point Journal Vacuuming
+    bottom_up_clean
+    draw_progress
+    draw_header "Cleanup 3/5" "Log Rotation & Journal Vacuuming"
+    pre_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
+
+    echo -e "${C_BORDER}Vacuuming Systemd Journal (Retention: 7 days / 100M)...${C_RESET}"
+    sudo journalctl --vacuum-time=7d
+    sudo journalctl --vacuum-size=100M
+
+    post_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
+    diff_l=$(( pre_l - post_l ))
+    [ "$diff_l" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_l ))
+    draw_separator "Journal Cleaned"
+    wait_user
+
+
+    # 4.4 Precision Kernel Modules Cleanup
+    bottom_up_clean
+    draw_progress
+    draw_header "Cleanup 4/5" "Analyzing Orphaned Kernel Modules"
 
     pre_k=$(du -sb /lib/modules 2>/dev/null | cut -f1)
     pre_k=${pre_k:-0}
@@ -989,62 +1049,6 @@ else
     post_k=${post_k:-0}
     diff_k=$(( pre_k - post_k ))
     [ "$diff_k" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_k ))
-    wait_user
-
-    # 4.2 Cache Maintenance (Nala & APT - Fixed Precision Analytics)
-    bottom_up_clean
-    draw_progress
-    draw_header "Cleanup 2/5" "Package Cache Purge"
-
-    # Track the total raw available bytes on the root partition before purging
-    pre_space=$(df -B1 / | awk 'NR==2 {print $4}')
-
-    echo -e "${C_BORDER}Clearing Nala & APT caches...${C_RESET}"
-    sudo nala clean
-    sudo apt-get autoclean -y
-    sudo apt-get autoremove --purge -y
-
-    # Track the total raw available bytes on the root partition after purging
-    post_space=$(df -B1 / | awk 'NR==2 {print $4}')
-
-    # True metric recovery is calculated as: post_space - pre_space
-    diff_c=$(( post_space - pre_space ))
-
-    # If blocks were successfully freed, append the delta to the global tracker
-    [ "$diff_c" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_c ))
-    wait_user
-
-    # 4.3 Residual Configs (Deep Scan)
-    bottom_up_clean
-    draw_progress
-    draw_header "Cleanup 3/5" "Residual Configuration Files"
-
-    purgestr=$(COLUMNS=200 dpkg -l | grep "^rc" | awk '{print $2}')
-    if [ -n "$purgestr" ]; then
-        echo -e "${C_WARN}Found leftover configs for:${C_RESET}"
-        echo "$purgestr" | sed 's/^/  - /'
-
-        # Use xargs to safely feed the clean whitespace-delimited arguments to dpkg
-        echo "$purgestr" | xargs sudo dpkg --purge
-    else
-        echo -e "${C_PROMPT}Success:${C_RESET} No residual configs detected."
-    fi
-    wait_user
-
-    # 4.4 Multi-Point Journal Vacuuming
-    bottom_up_clean
-    draw_progress
-    draw_header "Cleanup 4/5" "Log Rotation & Journal Vacuuming"
-    pre_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
-
-    echo -e "${C_BORDER}Vacuuming Systemd Journal (Retention: 7 days / 100M)...${C_RESET}"
-    sudo journalctl --vacuum-time=7d
-    sudo journalctl --vacuum-size=100M
-
-    post_l=$(du -sb /var/log/journal 2>/dev/null | cut -f1 || echo 0)
-    diff_l=$(( pre_l - post_l ))
-    [ "$diff_l" -gt 0 ] && TOTAL_FREED=$(( TOTAL_FREED + diff_l ))
-    draw_separator "Journal Cleaned"
     wait_user
 
     # 4.5 DKMS Depth Check (Precision Verification)

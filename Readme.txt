@@ -34,8 +34,8 @@ Desktop entry (Icon) is automatically created in System Tools.
 ##################################################################
 Change log:
 
-##################################################################
-Change log:
+
+ -V1.4.1   20-09-2026: Improved launcher robustness
 
  -V1.4.0   18-08-2026: The "Sentinel Cascade & Pure Orbit" Milestone Release.
                       - Dual-Engine Transition Probe: Hybrid APT/Nala deep solver via
@@ -55,10 +55,9 @@ Change log:
                       - Cleans a plethora of small cosmetic bugs. Recolored the logo.
 
  -V1.3.5   25-06-2026: The "Surgical Precision Sniper" Transition Release.
-                      - Hardened extraction scopes to trap simulation removals (`Remv`/`Purg`) and 
-                       input frameworks (`maliit`).
-                      - Redesigned visual hardware telemetry banner into a balanced 79-column laptop 
-                        workspace layout.
+                      - Hardened extraction scopes to trap simulation removals (`Remv`/`Purg`) and input frameworks
+                      (`maliit`).
+                      - Redesigned visual hardware telemetry banner into a balanced 79-column laptop workspace layout.
 
  -V1.3.4   03-06-2026: The "Surgical Precision Sniper" Update.
                       - Rewrote data engines to parse updates line-by-line, ending false removal warnings.
