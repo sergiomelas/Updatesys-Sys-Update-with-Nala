@@ -66,14 +66,14 @@ shine_stars_daemon() {
     done
 
     # --- Walking Penguin Animation State ---
-    # Rows 0-5: FIGlet logo | Rows 6-9: Clear middle corridor | Row 10+: IBM Box
-    local PENGUIN_Y=$((START_Y + 2))  # Placed in the corridor between header and computer box
+    # Rows 0-5: FIGlet logo | Rows 6-9: Clear empty corridor | Row 10+: Subtitle & IBM Box
+    local PENGUIN_Y=$((START_Y + 2))  # Positioned inside the 4-line open clearing
     local PENGUIN_X=4                 # Starting column offset
     local PENGUIN_MAX_X=70            # Reset column threshold
     local PENGUIN_COOLDOWN=0          # Pause between walking cycles
     local WALK_FRAME=0                # Frame toggle (0 or 1)
 
-    # Trap exit signals to clean up star remnants and penguin sprite
+    # Trap exit signals to clean up star remnants and penguin footprint
     trap '
         for ((s=0; s<num_stars; s++)); do
             local coord=(${abs_slots[${star_pos[s]}]})
@@ -85,7 +85,7 @@ shine_stars_daemon() {
         for i in {0..2}; do
             tput sc
             tput cup $((PENGUIN_Y + i)) $((PENGUIN_X > 0 ? PENGUIN_X - 1 : 0)) 2>/dev/null
-            echo -ne "      "
+            echo -ne "        "
             tput rc
         done
         tput cnorm
@@ -160,11 +160,11 @@ shine_stars_daemon() {
 
                 ((PENGUIN_X++)) # Move 1 column per tick
             else
-                # Clean up final footprint at the end of the pass
+                # Clean up full sprite footprint across all 3 rows at the end of the pass
                 tput sc
                 for i in {0..2}; do
                     tput cup $((PENGUIN_Y + i)) $((PENGUIN_MAX_X - 1)) 2>/dev/null
-                    echo -ne "      "
+                    echo -ne "        "
                 done
                 tput rc
 

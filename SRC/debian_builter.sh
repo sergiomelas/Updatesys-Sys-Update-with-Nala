@@ -1,127 +1,107 @@
-#!/bin/bash
-# Clean Debian Builder
+#!/usr/bin/env bash
+# ==============================================================================
+# UpdateSys - Native Debian Script Builder
 # Developed by Sergio Melas - 2026
+# Builds deb directly into script directory (No install, pure build)
+# ==============================================================================
+set -euo pipefail
 
-# --- Configuration ---
-PKG_NAME="updatesys"
-PKG_VER="1.4.1"
+PACKAGE_NAME="updatesys"
+PACKAGE_VERSION="1.4.2"
+PACKAGE_ARCH="all"
+
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PAYLOAD_DIR="${BASE_DIR}/Payload"
-BUILD_DIR="${BASE_DIR}/build_workspace"
-
-# Identity Configuration
-export DEBFULLNAME="Sergio Melas"
-export DEBEMAIL="sergiomelas@gmail.com"
-MAINTAINER="${DEBFULLNAME} <${DEBEMAIL}>"
+PKG_ROOT="${BASE_DIR}/pkg_root"
+DEB_FILE="${BASE_DIR}/${PACKAGE_NAME}_${PACKAGE_VERSION}_${PACKAGE_ARCH}.deb"
 
 echo " "
 echo " ##################################################################"
 echo " #                                                                #"
-echo " #                System Configuration Debian                     #"
-echo " #          Master Builder V1.0 - Debian Integration              #"
+echo " #              UpdateSys - Native Debian Builder                 #"
+echo " #               Version: ${PACKAGE_VERSION} - Script Packaging             #"
 echo " #                                                                #"
 echo " ##################################################################"
 echo " "
 
-# --- Files ---
-MAIN_LOGIC="UpdateSys.sh"
-LAUNCHER="UpdateSys_Laucher.sh"
-DESKTOP_FILE="Sys Update.desktop"
-ICON_FILE="updatesys.png"
+# --- 1. Detect Payload Directory ---
+if [ ! -d "${PAYLOAD_DIR}" ]; then
+    echo "❌ Error: Payload directory not found at: ${PAYLOAD_DIR}" >&2
+    exit 1
+fi
+echo "📁 Detected Payload folder at: ${PAYLOAD_DIR}"
 
-echo "🚀 Starting UpdateSys V${PKG_VER} Payload-Aware Build..."
+# --- 2. Prepare Packaging Directory Structure ---
+echo "🧹 Setting up staging environment..."
+rm -rf "${PKG_ROOT}"
+mkdir -p "${PKG_ROOT}/DEBIAN"
+mkdir -p "${PKG_ROOT}/usr/share/updatesys"
+mkdir -p "${PKG_ROOT}/usr/local/bin"
+mkdir -p "${PKG_ROOT}/usr/share/applications"
+mkdir -p "${PKG_ROOT}/usr/share/pixmaps"
 
-# --- Pre-Build Verification ---
-if [ ! -d "$PAYLOAD_DIR" ]; then
-    echo "❌ ERROR: Subfolder 'Payload' not found in: ${BASE_DIR}"
+# --- 3. Copy Assets from Payload ---
+echo "📋 Copying Payload files to Debian filesystem hierarchy..."
+
+# Core script to /usr/share/updatesys/UpdateSys.sh
+if [ -f "${PAYLOAD_DIR}/UpdateSys.sh" ]; then
+    cp "${PAYLOAD_DIR}/UpdateSys.sh" "${PKG_ROOT}/usr/share/updatesys/UpdateSys.sh"
+    chmod 755 "${PKG_ROOT}/usr/share/updatesys/UpdateSys.sh"
+    echo "  ✔ /usr/share/updatesys/UpdateSys.sh"
+else
+    echo "❌ Missing UpdateSys.sh in Payload!" >&2
     exit 1
 fi
 
-for file in "$MAIN_LOGIC" "$LAUNCHER" "$DESKTOP_FILE" "$ICON_FILE"; do
-    if [ ! -f "${PAYLOAD_DIR}/$file" ]; then
-        echo "❌ ERROR: File '$file' was not found in: ${PAYLOAD_DIR}"
-        exit 1
-    fi
-done
+# Launcher script to /usr/local/bin/updatesys
+if [ -f "${PAYLOAD_DIR}/UpdateSys_Laucher.sh" ]; then
+    cp "${PAYLOAD_DIR}/UpdateSys_Laucher.sh" "${PKG_ROOT}/usr/local/bin/updatesys"
+    chmod 755 "${PKG_ROOT}/usr/local/bin/updatesys"
+    echo "  ✔ /usr/local/bin/updatesys"
+elif [ -f "${PAYLOAD_DIR}/UpdateSys_Laucher_2.sh" ]; then
+    cp "${PAYLOAD_DIR}/UpdateSys_Laucher_2.sh" "${PKG_ROOT}/usr/local/bin/updatesys"
+    chmod 755 "${PKG_ROOT}/usr/local/bin/updatesys"
+    echo "  ✔ /usr/local/bin/updatesys"
+fi
 
-# 1. Clean and create structure
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR/DEBIAN"
-mkdir -p "$BUILD_DIR/usr/bin"
-mkdir -p "$BUILD_DIR/usr/share/updatesys"
-mkdir -p "$BUILD_DIR/usr/share/applications"
-mkdir -p "$BUILD_DIR/usr/share/pixmaps"
+# Desktop launcher entry
+if [ -f "${PAYLOAD_DIR}/Sys Update.desktop" ]; then
+    cp "${PAYLOAD_DIR}/Sys Update.desktop" "${PKG_ROOT}/usr/share/applications/updatesys.desktop"
+    chmod 644 "${PKG_ROOT}/usr/share/applications/updatesys.desktop"
+    echo "  ✔ /usr/share/applications/updatesys.desktop"
+fi
 
-# 2. Copy files from Payload to system paths
-cp "${PAYLOAD_DIR}/$MAIN_LOGIC" "$BUILD_DIR/usr/share/updatesys/UpdateSys.sh"
-cp "${PAYLOAD_DIR}/$LAUNCHER" "$BUILD_DIR/usr/bin/updatesys"
-cp "${PAYLOAD_DIR}/$DESKTOP_FILE" "$BUILD_DIR/usr/share/applications/updatesys.desktop"
-cp "${PAYLOAD_DIR}/$ICON_FILE" "$BUILD_DIR/usr/share/pixmaps/updatesys.png"
+# Application icon
+if [ -f "${PAYLOAD_DIR}/updatesys.png" ]; then
+    cp "${PAYLOAD_DIR}/updatesys.png" "${PKG_ROOT}/usr/share/pixmaps/updatesys.png"
+    chmod 644 "${PKG_ROOT}/usr/share/pixmaps/updatesys.png"
+    echo "  ✔ /usr/share/pixmaps/updatesys.png"
+fi
 
-chmod +x "$BUILD_DIR/usr/share/updatesys/UpdateSys.sh"
-chmod +x "$BUILD_DIR/usr/bin/updatesys"
-
-# 3. Create the Debian Control File
-# Fixed: Hard dependencies ensure the script functions never "skip"
-cat <<EOF > "$BUILD_DIR/DEBIAN/control"
-Package: $PKG_NAME
-Version: $PKG_VER
-Section: utils
+# --- 4. Generate Control File ---
+echo "📝 Writing DEBIAN/control..."
+cat <<EOF > "${PKG_ROOT}/DEBIAN/control"
+Package: ${PACKAGE_NAME}
+Version: ${PACKAGE_VERSION}
+Section: admin
 Priority: optional
-Architecture: all
-Maintainer: ${MAINTAINER}
-Depends: nala, fastfetch, flatpak, snapd, dkms, bash, coreutils
-Recommends: konsole | gnome-terminal | xfce4-terminal
-Description: Pretty System Update
- Professional system updater for Debian Sid.
- Optimized for surgical updates and DKMS driver integrity.
+Architecture: ${PACKAGE_ARCH}
+Depends: bash (>= 5.0), nala, coreutils
+Maintainer: Sergio Melas <sergiomelas@gmail.com>
+Description: Pretty System Update - Sid Specialized Maintenance Tool
+ Intelligent dual-stage risk detection, transition analysis, and system cleanup.
 EOF
 
-# --- Box Padding Logic ---
-WIDTH=48
-STR1="# UpdateSys V${PKG_VER} installed successfully."
-PAD1=$(( WIDTH - ${#STR1} - 1 ))
-LINE1="${STR1}$(printf '%*s' $PAD1 '')#"
-STR2="# You can run it by typing 'updatesys'"
-PAD2=$(( WIDTH - ${#STR2} - 1 ))
-LINE2="${STR2}$(printf '%*s' $PAD2 '')#"
-STR3="# or find it in your application menu."
-PAD3=$(( WIDTH - ${#STR3} - 1 ))
-LINE3="${STR3}$(printf '%*s' $PAD3 '')#"
+# --- 5. Build Debian Package Directly in BASE_DIR ---
+echo "📦 Packaging with dpkg-deb..."
+dpkg-deb --build --root-owner-group "${PKG_ROOT}" "${DEB_FILE}"
 
-# 4. Post-Installation Script
-cat <<EOF > "$BUILD_DIR/DEBIAN/postinst"
-#!/bin/bash
-update-desktop-database /usr/share/applications >/dev/null 2>&1
+# Cleanup staging area
+rm -rf "${PKG_ROOT}"
 
-if command -v kbuildsycoca6 >/dev/null 2>&1; then
-    kbuildsycoca6 --noincremental >/dev/null 2>&1
-elif command -v kbuildsycoca5 >/dev/null 2>&1; then
-    kbuildsycoca5 --noincremental >/dev/null 2>&1
-fi
-
+echo " "
 echo "################################################"
-echo "$LINE1"
-echo "$LINE2"
-echo "$LINE3"
+echo "# Built successfully!                          #"
+echo "# Output: ${DEB_FILE}"
 echo "################################################"
-EOF
-chmod 755 "$BUILD_DIR/DEBIAN/postinst"
-
-# 5. Post-Removal Script
-cat <<EOF > "$BUILD_DIR/DEBIAN/postrm"
-#!/bin/bash
-if [ "\$1" = "remove" ]; then
-    rm -rf /usr/share/updatesys
-    rm -f /usr/share/pixmaps/updatesys.png
-    update-desktop-database /usr/share/applications >/dev/null 2>&1
-fi
-EOF
-chmod 755 "$BUILD_DIR/DEBIAN/postrm"
-
-# 6. Build
-echo "🏗️  Compiling .deb package..."
-dpkg-deb --build "$BUILD_DIR" "${BASE_DIR}/${PKG_NAME}_${PKG_VER}_all.deb"
-
-rm -rf "$BUILD_DIR"
-echo "✅ Build successful! Find your file in: ${BASE_DIR}"
+echo " "

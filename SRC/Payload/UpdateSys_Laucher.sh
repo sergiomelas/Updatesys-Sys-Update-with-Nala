@@ -12,21 +12,38 @@ if [ ! -x "$SCRIPT_PATH" ]; then
     chmod +x "$SCRIPT_PATH" 2>/dev/null
 fi
 
-# Detect Terminal and Launch (Passing bash explicitly to prevent execve parsing errors)
+COLS=84
+ROWS=80
+
+# Detect Terminal and Launch with updated modern CLI syntax
 if command -v konsole >/dev/null 2>&1; then
-    konsole --geometry 900x1200 -e /bin/bash "$SCRIPT_PATH"
-elif command -v gnome-terminal >/dev/null 2>&1; then
-    gnome-terminal --geometry=110x60 -- /bin/bash "$SCRIPT_PATH"
-elif command -v xfce4-terminal >/dev/null 2>&1; then
-    xfce4-terminal --geometry=110x60 -e "/bin/bash $SCRIPT_PATH"
+    # Modern Konsole (Qt6 / KDE Plasma 6)
+    exec konsole -p TerminalColumns=$COLS -p TerminalRows=$ROWS -e /bin/bash "$SCRIPT_PATH"
+elif command -v foot >/dev/null 2>&1; then
+    # Foot (Wayland fast native terminal)
+    exec foot --window-size-chars=${COLS}x${ROWS} /bin/bash "$SCRIPT_PATH"
+elif command -v ghostty >/dev/null 2>&1; then
+    # Ghostty (GPU terminal)
+    exec ghostty --window-width=$COLS --window-height=$ROWS -e /bin/bash "$SCRIPT_PATH"
 elif command -v alacritty >/dev/null 2>&1; then
-    alacritty -o "window.dimensions={columns=110,lines=60}" -e /bin/bash "$SCRIPT_PATH"
+    # Modern Alacritty CLI flags (v0.12+)
+    exec alacritty --option "window.dimensions.columns=$COLS" --option "window.dimensions.lines=$ROWS" -e /bin/bash "$SCRIPT_PATH"
 elif command -v kitty >/dev/null 2>&1; then
-    kitty -o initial_window_width=110c -o initial_window_height=60c /bin/bash "$SCRIPT_PATH"
+    # Kitty terminal
+    exec kitty -o initial_window_width=${COLS}c -o initial_window_height=${ROWS}c /bin/bash "$SCRIPT_PATH"
+elif command -v gnome-terminal >/dev/null 2>&1; then
+    # GNOME Terminal (GTK modern delimiter syntax)
+    exec gnome-terminal --geometry=${COLS}x${ROWS} -- /bin/bash "$SCRIPT_PATH"
+elif command -v xfce4-terminal >/dev/null 2>&1; then
+    # XFCE4 Terminal
+    exec xfce4-terminal --geometry=${COLS}x${ROWS} -x /bin/bash "$SCRIPT_PATH"
 elif command -v tilix >/dev/null 2>&1; then
-    tilix --geometry=110x60 -e "/bin/bash $SCRIPT_PATH"
+    # Tilix
+    exec tilix --geometry=${COLS}x${ROWS} -e /bin/bash "$SCRIPT_PATH"
 elif command -v terminator >/dev/null 2>&1; then
-    terminator --geometry=110x60 -e "/bin/bash $SCRIPT_PATH"
+    # Terminator
+    exec terminator --geometry=${COLS}x${ROWS} -x /bin/bash "$SCRIPT_PATH"
 else
-    xterm -geometry 110x60 -e /bin/bash "$SCRIPT_PATH"
+    # Fallback X11 terminal
+    exec xterm -geometry ${COLS}x${ROWS} -e /bin/bash "$SCRIPT_PATH"
 fi

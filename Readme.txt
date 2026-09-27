@@ -35,6 +35,8 @@ Desktop entry (Icon) is automatically created in System Tools.
 Change log:
 
 
+ -V1.4.2   27-09-2026: Updated launcher for konsole geometry deprecation
+
  -V1.4.1   20-09-2026: Improved launcher robustness
 
  -V1.4.0   18-08-2026: The "Sentinel Cascade & Pure Orbit" Milestone Release.
